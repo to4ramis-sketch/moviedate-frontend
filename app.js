@@ -1,5 +1,6 @@
 /* =========================================================
    MOVIEDATE — COMPLETE APP.JS
+   CAMERA + MOVIE WEBRTC FIX
    ========================================================= */
 
 const BACKEND_URL =
@@ -472,9 +473,6 @@ socket.on(
 
     /*
       DO NOT call showApp() here.
-
-      Fresh page loads must remain
-      on the room creation screen.
     */
 
 
@@ -620,6 +618,9 @@ async function startCamera() {
       localVideo.muted =
         true;
 
+      localVideo.playsInline =
+        true;
+
       localVideo.play()
         .catch(() => {});
 
@@ -632,8 +633,8 @@ async function startCamera() {
 
 
     /*
-      If partner is already present,
-      create the WebRTC connection.
+      Create the camera peer immediately.
+      Tracks are added before negotiation.
     */
 
     if (
@@ -701,21 +702,40 @@ function createCameraPeer() {
     });
 
 
+  /*
+    Add local camera + microphone.
+  */
+
   if (localStream) {
 
     localStream
       .getTracks()
       .forEach((track) => {
 
-        cameraPeer.addTrack(
-          track,
-          localStream
-        );
+        try {
+
+          cameraPeer.addTrack(
+            track,
+            localStream
+          );
+
+        } catch (error) {
+
+          console.warn(
+            "Could not add camera track:",
+            error
+          );
+
+        }
 
       });
 
   }
 
+
+  /*
+    ICE candidates.
+  */
 
   cameraPeer.onicecandidate =
     (event) => {
@@ -739,21 +759,82 @@ function createCameraPeer() {
     };
 
 
+  /*
+    IMPORTANT FIX:
+    Always build a remote MediaStream.
+
+    Some browsers provide event.streams[0].
+    Some situations can deliver the track
+    without the stream array.
+  */
+
+  let remoteCameraStream =
+    null;
+
+
   cameraPeer.ontrack =
     (event) => {
 
       log(
-        "Remote camera track"
+        "Remote camera track:",
+        event.track?.kind
       );
 
 
+      if (!remoteCameraStream) {
+
+        remoteCameraStream =
+          event.streams &&
+          event.streams[0]
+            ? event.streams[0]
+            : new MediaStream();
+
+      }
+
+
+      /*
+        If Chrome did not provide a stream,
+        manually add the incoming track.
+      */
+
       if (
-        remoteVideo &&
-        event.streams[0]
+        !event.streams ||
+        !event.streams[0]
       ) {
 
+        const exists =
+          remoteCameraStream
+            .getTracks()
+            .some(
+              track =>
+                track.id ===
+                event.track.id
+            );
+
+        if (!exists) {
+
+          remoteCameraStream.addTrack(
+            event.track
+          );
+
+        }
+
+      }
+
+
+      if (remoteVideo) {
+
         remoteVideo.srcObject =
-          event.streams[0];
+          remoteCameraStream;
+
+        remoteVideo.autoplay =
+          true;
+
+        remoteVideo.playsInline =
+          true;
+
+        remoteVideo.muted =
+          true;
 
         remoteVideo.play()
           .catch(() => {});
@@ -766,6 +847,8 @@ function createCameraPeer() {
   cameraPeer.onconnectionstatechange =
     () => {
 
+      if (!cameraPeer) return;
+
       log(
         "Camera state:",
         cameraPeer.connectionState
@@ -774,12 +857,45 @@ function createCameraPeer() {
 
       if (
         cameraPeer.connectionState ===
-          "failed"
+        "connected"
       ) {
 
-        cameraPeer.restartIce();
+        log(
+          "CAMERA CONNECTED"
+        );
 
       }
+
+
+      if (
+        cameraPeer.connectionState ===
+        "failed"
+      ) {
+
+        console.warn(
+          "Camera connection failed"
+        );
+
+        try {
+
+          cameraPeer.restartIce();
+
+        } catch (error) {}
+
+      }
+
+    };
+
+
+  cameraPeer.oniceconnectionstatechange =
+    () => {
+
+      if (!cameraPeer) return;
+
+      log(
+        "Camera ICE:",
+        cameraPeer.iceConnectionState
+      );
 
     };
 
@@ -939,9 +1055,10 @@ socket.on(
 
       await createCameraOffer();
 
+
       /*
-        Movie offer will be created only
-        when the host has selected a movie.
+        If host already selected a movie,
+        start its movie WebRTC connection.
       */
 
       if (hasMovie) {
@@ -965,12 +1082,6 @@ socket.on(
       data
     );
 
-
-    /*
-      The host waits for peer-ready.
-      Partner waits for the host offer.
-    */
-
   }
 );
 
@@ -986,10 +1097,6 @@ socket.on(
     if (!data) return;
 
 
-    /* -------------------------------------
-       CAMERA OFFER
-    ------------------------------------- */
-
     if (
       data.type ===
       "camera-offer"
@@ -1003,10 +1110,6 @@ socket.on(
 
     }
 
-
-    /* -------------------------------------
-       CAMERA ANSWER
-    ------------------------------------- */
 
     if (
       data.type ===
@@ -1022,10 +1125,6 @@ socket.on(
     }
 
 
-    /* -------------------------------------
-       CAMERA ICE
-    ------------------------------------- */
-
     if (
       data.type ===
       "camera-ice"
@@ -1039,10 +1138,6 @@ socket.on(
 
     }
 
-
-    /* -------------------------------------
-       MOVIE OFFER
-    ------------------------------------- */
 
     if (
       data.type ===
@@ -1058,10 +1153,6 @@ socket.on(
     }
 
 
-    /* -------------------------------------
-       MOVIE ANSWER
-    ------------------------------------- */
-
     if (
       data.type ===
       "movie-answer"
@@ -1075,10 +1166,6 @@ socket.on(
 
     }
 
-
-    /* -------------------------------------
-       MOVIE ICE
-    ------------------------------------- */
 
     if (
       data.type ===
@@ -1109,16 +1196,47 @@ async function handleCameraOffer(
 
     if (!cameraPeer) {
 
+      /*
+        Receiver should already have
+        created this after startCamera(),
+        but keep this as a safety fallback.
+      */
+
       createCameraPeer();
+
+    }
+
+
+    if (!cameraPeer) {
+
+      return;
+
+    }
+
+
+    /*
+      Ignore duplicate offers while another
+      negotiation is still being processed.
+    */
+
+    if (
+      cameraPeer.signalingState !==
+      "stable"
+    ) {
+
+      log(
+        "Ignoring camera offer in state:",
+        cameraPeer.signalingState
+      );
+
+      return;
 
     }
 
 
     await cameraPeer
       .setRemoteDescription(
-        new RTCSessionDescription(
-          data.sdp
-        )
+        data.sdp
       );
 
 
@@ -1184,11 +1302,24 @@ async function handleCameraAnswer(
 
   try {
 
+    if (
+      cameraPeer.signalingState !==
+      "have-local-offer"
+    ) {
+
+      log(
+        "Ignoring camera answer in state:",
+        cameraPeer.signalingState
+      );
+
+      return;
+
+    }
+
+
     await cameraPeer
       .setRemoteDescription(
-        new RTCSessionDescription(
-          data.sdp
-        )
+        data.sdp
       );
 
 
@@ -1222,6 +1353,20 @@ async function handleCameraAnswer(
 async function handleCameraIce(
   data
 ) {
+
+  if (!data.candidate) {
+
+    return;
+
+  }
+
+
+  if (!cameraPeer) {
+
+    createCameraPeer();
+
+  }
+
 
   if (
     !cameraPeer
@@ -1322,6 +1467,36 @@ async function loadMovie(
 
 
   /*
+    Close previous movie peer.
+  */
+
+  if (moviePeer) {
+
+    moviePeer.close();
+
+    moviePeer =
+      null;
+
+  }
+
+
+  movieVideoSender =
+    null;
+
+  movieAudioSender =
+    null;
+
+  movieOfferSent =
+    false;
+
+  movieRemoteDescriptionSet =
+    false;
+
+  pendingMovieIce =
+    [];
+
+
+  /*
     Stop previous captured tracks.
   */
 
@@ -1367,6 +1542,9 @@ async function loadMovie(
 
   movie.src =
     localMovieURL;
+
+  movie.srcObject =
+    null;
 
   movie.controls =
     false;
@@ -1424,9 +1602,7 @@ async function loadMovie(
 
 
       /*
-        Host can start playback
-        from the user action that
-        selected the file.
+        Host can start playback.
       */
 
       try {
@@ -1477,6 +1653,14 @@ function getMovieCaptureStream() {
 
   movieCaptureStream =
     movie.captureStream();
+
+
+  log(
+    "Movie capture stream:",
+    movieCaptureStream.getTracks().map(
+      track => track.kind
+    )
+  );
 
 
   return movieCaptureStream;
@@ -1540,8 +1724,144 @@ function createMoviePeer() {
     };
 
 
+  /*
+    =======================================================
+    IMPORTANT FIX
+    =======================================================
+
+    The receiver previously had NO ontrack handler
+    for the movie peer.
+
+    That meant the movie stream could arrive successfully
+    through WebRTC but was never assigned to <video id="movie">.
+  */
+
+  let remoteMovieStream =
+    null;
+
+
+  moviePeer.ontrack =
+    (event) => {
+
+      log(
+        "REMOTE MOVIE TRACK:",
+        event.track?.kind
+      );
+
+
+      if (!remoteMovieStream) {
+
+        remoteMovieStream =
+          event.streams &&
+          event.streams[0]
+            ? event.streams[0]
+            : new MediaStream();
+
+      }
+
+
+      /*
+        Fallback for browsers where
+        event.streams is empty.
+      */
+
+      if (
+        !event.streams ||
+        !event.streams[0]
+      ) {
+
+        const exists =
+          remoteMovieStream
+            .getTracks()
+            .some(
+              track =>
+                track.id ===
+                event.track.id
+            );
+
+        if (!exists) {
+
+          remoteMovieStream.addTrack(
+            event.track
+          );
+
+        }
+
+      }
+
+
+      /*
+        Attach incoming movie to the
+        existing movie element.
+
+        This is the critical receiver fix.
+      */
+
+      if (movie) {
+
+        movie.srcObject =
+          remoteMovieStream;
+
+        movie.removeAttribute(
+          "src"
+        );
+
+        movie.autoplay =
+          false;
+
+        movie.playsInline =
+          true;
+
+
+        /*
+          Receiver video should not be
+          muted by default because the
+          movie audio is also being sent.
+        */
+
+        movie.muted =
+          false;
+
+
+        log(
+          "Remote movie stream attached"
+        );
+
+
+        /*
+          Try playback. Android Chrome may
+          block this until the user taps.
+        */
+
+        movie.play()
+          .then(() => {
+
+            log(
+              "Remote movie playback started"
+            );
+
+          })
+          .catch(() => {
+
+            log(
+              "Remote movie waiting for user tap"
+            );
+
+            showToast(
+              "Tap the movie to start playback."
+            );
+
+          });
+
+      }
+
+    };
+
+
   moviePeer.onconnectionstatechange =
     () => {
+
+      if (!moviePeer) return;
 
       log(
         "Movie connection:",
@@ -1551,12 +1871,45 @@ function createMoviePeer() {
 
       if (
         moviePeer.connectionState ===
-          "failed"
+        "connected"
       ) {
 
-        moviePeer.restartIce();
+        log(
+          "MOVIE CONNECTED"
+        );
 
       }
+
+
+      if (
+        moviePeer.connectionState ===
+        "failed"
+      ) {
+
+        console.warn(
+          "Movie connection failed"
+        );
+
+        try {
+
+          moviePeer.restartIce();
+
+        } catch (error) {}
+
+      }
+
+    };
+
+
+  moviePeer.oniceconnectionstatechange =
+    () => {
+
+      if (!moviePeer) return;
+
+      log(
+        "Movie ICE:",
+        moviePeer.iceConnectionState
+      );
 
     };
 
@@ -1576,6 +1929,17 @@ async function startMovieStream() {
     !hasMovie ||
     !movie
   ) {
+
+    return;
+
+  }
+
+
+  /*
+    Movie sharing is host -> receiver only.
+  */
+
+  if (!isHost) {
 
     return;
 
@@ -1626,6 +1990,10 @@ async function startMovieStream() {
         stream
       );
 
+    log(
+      "Movie video track added"
+    );
+
   }
 
 
@@ -1648,11 +2016,15 @@ async function startMovieStream() {
         stream
       );
 
+    log(
+      "Movie audio track added"
+    );
+
   }
 
 
   /*
-    Only send ONE initial offer.
+    Only send initial offer once.
   */
 
   if (
@@ -1724,11 +2096,35 @@ async function handleMovieOffer(
     }
 
 
+    if (!moviePeer) {
+
+      return;
+
+    }
+
+
+    /*
+      Receiver accepts the host offer.
+    */
+
+    if (
+      moviePeer.signalingState !==
+      "stable"
+    ) {
+
+      log(
+        "Ignoring movie offer in state:",
+        moviePeer.signalingState
+      );
+
+      return;
+
+    }
+
+
     await moviePeer
       .setRemoteDescription(
-        new RTCSessionDescription(
-          data.sdp
-        )
+        data.sdp
       );
 
 
@@ -1794,11 +2190,24 @@ async function handleMovieAnswer(
 
   try {
 
+    if (
+      moviePeer.signalingState !==
+      "have-local-offer"
+    ) {
+
+      log(
+        "Ignoring movie answer in state:",
+        moviePeer.signalingState
+      );
+
+      return;
+
+    }
+
+
     await moviePeer
       .setRemoteDescription(
-        new RTCSessionDescription(
-          data.sdp
-        )
+        data.sdp
       );
 
 
@@ -1833,9 +2242,23 @@ async function handleMovieIce(
   data
 ) {
 
+  if (!data.candidate) {
+
+    return;
+
+  }
+
+
   if (!moviePeer) {
 
     createMoviePeer();
+
+  }
+
+
+  if (!moviePeer) {
+
+    return;
 
   }
 
@@ -2152,8 +2575,6 @@ async function applyRemotePlayback(
     /*
       Android Chrome can block
       remote autoplay.
-
-      User can tap movie.
     */
 
   }
@@ -2793,12 +3214,7 @@ function checkRoomURL() {
 
 
   /*
-    We DO NOT automatically open
-    the player.
-
-    If a room exists in the URL,
-    we simply put the code into
-    the join field.
+    DO NOT automatically join.
   */
 
   if (
@@ -2949,6 +3365,12 @@ function leaveRoom() {
   pendingMovieIce =
     [];
 
+  movieVideoSender =
+    null;
+
+  movieAudioSender =
+    null;
+
   cameraOfferSent =
     false;
 
@@ -2982,6 +3404,9 @@ function leaveRoom() {
   if (movie) {
 
     movie.pause();
+
+    movie.srcObject =
+      null;
 
     movie.removeAttribute(
       "src"
@@ -3037,11 +3462,6 @@ socket.on(
     );
 
 
-    /*
-      Don't destroy the host's movie.
-      Just reset the peer connections.
-    */
-
     if (cameraPeer) {
 
       cameraPeer.close();
@@ -3080,12 +3500,11 @@ socket.on(
     pendingMovieIce =
       [];
 
+    movieVideoSender =
+      null;
 
-    /*
-      If host still has a movie,
-      it can create a new movie
-      peer when another person joins.
-    */
+    movieAudioSender =
+      null;
 
   }
 );
@@ -3105,12 +3524,7 @@ document.addEventListener(
 
 
     /*
-      VERY IMPORTANT:
-
-      ALWAYS start at the room gate.
-
-      The player is NEVER shown
-      automatically.
+      ALWAYS start at room gate.
     */
 
     showRoomGate();
