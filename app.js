@@ -23,6 +23,43 @@ const movieFile = $("movieFile");
 const localVideo = $("localVideo");
 const remoteVideo = $("remoteVideo");
 
+// Let the device file picker show MKV as well. Note: standard Chrome/Android
+// still cannot decode MKV natively; MP4 (H.264/AAC) or WebM is required for
+// actual in-browser playback unless an MKV decoder/transcoder is added.
+if (movieFile) {
+  movieFile.accept = "video/mp4,video/webm,video/x-matroska,.mp4,.webm,.mkv";
+}
+
+// Persistent host-only movie changer in the top bar.
+function ensureChangeMovieButton() {
+  const header = document.querySelector(".topbar");
+  const roomInfo = document.querySelector(".room-info");
+  if (!header || !roomInfo || $("changeMovieTopBtn")) return;
+
+  const button = document.createElement("button");
+  button.id = "changeMovieTopBtn";
+  button.type = "button";
+  button.className = "top-button change-movie-button";
+  button.textContent = "Change movie";
+  button.title = "Choose a different movie";
+  button.style.display = "none";
+  button.addEventListener("click", () => {
+    if (!isHost) {
+      toast("Only the room host can change the movie");
+      return;
+    }
+    movieFile?.click();
+  });
+
+  roomInfo.insertAdjacentElement("afterend", button);
+}
+
+function updateChangeMovieButton() {
+  ensureChangeMovieButton();
+  const button = $("changeMovieTopBtn");
+  if (button) button.style.display = isHost && hasJoinedRoom ? "inline-flex" : "none";
+}
+
 function toast(msg) {
   const el = $("toast");
   if (!el) return;
@@ -89,6 +126,8 @@ function openApp() {
   show("roomGate", false);
   show("joinSheet", false);
   show("app", true);
+  ensureChangeMovieButton();
+  updateChangeMovieButton();
 }
 
 function openJoinSheet() {
@@ -165,6 +204,7 @@ async function joinRoom(id, host = false) {
   hasJoinedRoom = true;
 
   setText("roomCode", roomId);
+  updateChangeMovieButton();
   openApp();
   socket.emit("join-room", { roomId });
   await startCamera();
@@ -185,10 +225,21 @@ function createCameraPeer(offerer = false) {
     ]
   });
 
+  // Always send our local camera + microphone tracks. This is important for
+  // the second participant: recvonly transceivers alone make the partner
+  // visible to them, but do not send their own camera/mic back.
+  const localKinds = new Set();
   if (localStream) {
-    for (const track of localStream.getTracks()) cameraPeer.addTrack(track, localStream);
-  } else {
+    for (const track of localStream.getTracks()) {
+      cameraPeer.addTrack(track, localStream);
+      localKinds.add(track.kind);
+    }
+  }
+
+  if (!localKinds.has("video")) {
     cameraPeer.addTransceiver("video", { direction: "recvonly" });
+  }
+  if (!localKinds.has("audio")) {
     cameraPeer.addTransceiver("audio", { direction: "recvonly" });
   }
 
@@ -373,12 +424,14 @@ socket.on("room-full", () => toast("This room already has two people"));
 socket.on("room-joined", data => {
   isHost = !!data?.isHost;
   setText("roomCode", data?.roomId || roomId);
+  updateChangeMovieButton();
   setPartnerStatus(data?.participants > 1 ? "● connected" : "○ waiting");
 });
 
 socket.on("room-state", data => {
   if (!data) return;
   if (data.hostSocketId === socket.id) isHost = true;
+  updateChangeMovieButton();
   setText("roomCode", data.roomId || roomId);
   setPartnerStatus(data.participants > 1 ? "● connected" : "○ waiting");
 
@@ -397,6 +450,7 @@ socket.on("peer-joined", async ({ socketId, hostSocketId }) => {
   setPartnerStatus("● connected");
   if (socket.id === hostSocketId) {
     isHost = true;
+    updateChangeMovieButton();
     await startCamera();
     createCameraPeer(true);
   }
@@ -506,6 +560,16 @@ movieFile?.addEventListener("change", event => {
   const file = event.target.files?.[0];
   if (!file) return;
 
+  const isMkv = /\.mkv$/i.test(file.name) || file.type === "video/x-matroska";
+  if (isMkv) {
+    // Chrome/Android does not natively decode MKV in a normal <video> element.
+    // We accept MKV in the picker so it is not rejected, but explain the
+    // browser limitation instead of leaving the player silently broken.
+    toast("MKV selected — this browser needs MKV converted to MP4/WebM to play it");
+    movieFile.value = "";
+    return;
+  }
+
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(file);
 
@@ -524,6 +588,13 @@ movieFile?.addEventListener("change", event => {
 
   socket.emit("movie-meta", { name: file.name });
   toast("Movie ready");
+});
+
+movie?.addEventListener("error", () => {
+  const fileName = movieFile?.files?.[0]?.name || "this movie";
+  console.error("MOVIE MEDIA ERROR:", movie.error, fileName);
+  show("movieLoading", false);
+  toast("This video format cannot be played in Chrome. Use MP4 (H.264/AAC) or WebM.");
 });
 
 movie?.addEventListener("loadedmetadata", () => {
@@ -676,6 +747,18 @@ for (const button of document.querySelectorAll(".reaction-btn")) {
 socket.on("reaction", data => {
   if (data?.emoji) showReaction(data.emoji);
 });
+
+// Mobile browsers may block autoplay with audio. Once the user interacts
+// with the page, retry playback for the remote camera and movie stream.
+let mediaUnlocked = false;
+const unlockRemoteMedia = () => {
+  if (mediaUnlocked) return;
+  mediaUnlocked = true;
+  if (remoteVideo?.srcObject) remoteVideo.play().catch(() => {});
+  if (movie?.srcObject) movie.play().catch(() => {});
+};
+document.addEventListener("pointerdown", unlockRemoteMedia, { once: true, passive: true });
+document.addEventListener("touchstart", unlockRemoteMedia, { once: true, passive: true });
 
 // Initial UI state.
 show("app", false);
