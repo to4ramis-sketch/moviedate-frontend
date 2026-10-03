@@ -469,6 +469,39 @@ function togglePlay(send = true) {
   if (send) sendPlayback(movie.paused ? "pause" : "play");
 }
 
+function resetMovieStreamForNewMovie() {
+  movieStreamStarted = false;
+  if (moviePeer) {
+    moviePeer.close();
+    moviePeer = null;
+  }
+  if (movieCaptureStream) {
+    movieCaptureStream.getTracks().forEach(track => track.stop());
+    movieCaptureStream = null;
+  }
+  remoteMovieStream = null;
+}
+
+function showAddMovieState() {
+  setText("emptyState", "");
+  const title = document.querySelector("#emptyState .empty-title");
+  const text = document.querySelector("#emptyState .empty-text");
+  const button = $("chooseMovieBtn");
+  if (title) title.textContent = "Movie finished";
+  if (text) text.textContent = "Choose another movie to keep watching together";
+  if (button) button.textContent = "＋ Add another movie";
+  show("emptyState", true);
+}
+
+function restoreChooseMovieState() {
+  const title = document.querySelector("#emptyState .empty-title");
+  const text = document.querySelector("#emptyState .empty-text");
+  const button = $("chooseMovieBtn");
+  if (title) title.textContent = "Choose a movie";
+  if (text) text.textContent = "Pick a movie from your device";
+  if (button) button.textContent = "Choose movie";
+}
+
 movieFile?.addEventListener("change", event => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -476,6 +509,8 @@ movieFile?.addEventListener("change", event => {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(file);
 
+  restoreChooseMovieState();
+  resetMovieStreamForNewMovie();
   movie.srcObject = null;
   movie.src = objectUrl;
   movie.load();
@@ -519,6 +554,15 @@ movie?.addEventListener("timeupdate", () => {
   const seek = $("seekBar");
   if (seek && !seek.matches(":active")) seek.value = percent;
   setText("movieTime", `${formatTime(movie.currentTime)} / ${formatTime(duration)}`);
+});
+
+movie?.addEventListener("ended", () => {
+  setText("playBtn", "▶");
+  setText("centerPlayBtn", "▶");
+  if (!suppressMovieEvent) sendPlayback("pause");
+  if (isHost) resetMovieStreamForNewMovie();
+  showAddMovieState();
+  toast("Movie finished — add another movie");
 });
 
 $("chooseMovieBtn")?.addEventListener("click", () => movieFile?.click());
