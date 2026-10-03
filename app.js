@@ -6,35 +6,52 @@ const socket = io(BACKEND_URL, {
   reconnection: true
 });
 
+
 // =====================================================
 // ELEMENTS
 // =====================================================
 
-const movie = document.getElementById("movie");
-const movieInput = document.getElementById("movieInput");
+const movie =
+  document.getElementById("movie");
 
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
+const movieInput =
+  document.getElementById("movieFile");
 
-const chooseMovie = document.getElementById("chooseMovie");
+const localVideo =
+  document.getElementById("localVideo");
+
+const remoteVideo =
+  document.getElementById("remoteVideo");
+
+const chooseMovie =
+  document.getElementById("chooseMovieBtn");
 
 const createRoomBtn =
-  document.getElementById("createRoom");
+  document.getElementById("createRoomBtn");
+
+const joinPromptBtn =
+  document.getElementById("joinPromptBtn");
 
 const joinRoomBtn =
-  document.getElementById("joinRoom");
+  document.getElementById("joinRoomBtn");
 
 const roomInput =
-  document.getElementById("roomInput");
+  document.getElementById("roomCodeInput");
 
 const roomGate =
   document.getElementById("roomGate");
+
+const joinSheet =
+  document.getElementById("joinSheet");
+
+const closeJoinBtn =
+  document.getElementById("closeJoinBtn");
 
 const app =
   document.getElementById("app");
 
 const exitRoom =
-  document.getElementById("exitRoom");
+  document.getElementById("exitBtn");
 
 
 // =====================================================
@@ -42,6 +59,7 @@ const exitRoom =
 // =====================================================
 
 let roomId = "";
+
 let isHost = false;
 
 let partnerSocketId = null;
@@ -50,10 +68,15 @@ let localStream = null;
 
 let peer = null;
 
-// Movie WebRTC connection
+
+// =====================================================
+// MOVIE WEBRTC STATE
+// =====================================================
+
 let moviePeer = null;
 
 let movieVideoSender = null;
+
 let movieAudioSender = null;
 
 let movieCaptureStream = null;
@@ -62,20 +85,30 @@ let localMovieURL = null;
 
 let hasMovie = false;
 
+let movieOfferSent = false;
+
+let movieRemoteDescriptionSet = false;
+
+let pendingMovieIce = [];
+
 
 // =====================================================
 // ICE
 // =====================================================
 
 const ICE_SERVERS = {
+
   iceServers: [
+
     {
       urls: [
         "stun:stun.l.google.com:19302",
         "stun:stun.cloudflare.com:3478"
       ]
     }
+
   ]
+
 };
 
 
@@ -85,26 +118,42 @@ const ICE_SERVERS = {
 
 function toast(message) {
 
-  console.log("[MovieDate]", message);
+  console.log(
+    "[MovieDate]",
+    message
+  );
 
   const toastEl =
     document.getElementById("toast");
 
   if (!toastEl) {
+
     console.log(message);
+
     return;
+
   }
 
-  toastEl.textContent = message;
+  toastEl.textContent =
+    message;
 
-  toastEl.classList.add("show");
+  toastEl.classList.add(
+    "show"
+  );
 
-  clearTimeout(window.__toastTimer);
+  clearTimeout(
+    window.__toastTimer
+  );
 
   window.__toastTimer =
     setTimeout(() => {
-      toastEl.classList.remove("show");
+
+      toastEl.classList.remove(
+        "show"
+      );
+
     }, 2500);
+
 }
 
 
@@ -113,7 +162,10 @@ function cleanRoomId(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
+    .replace(
+      /[^A-Z0-9]/g,
+      ""
+    )
     .slice(0, 12);
 
 }
@@ -126,12 +178,17 @@ function generateRoomCode() {
 
   let result = "";
 
-  for (let i = 0; i < 6; i++) {
+  for (
+    let i = 0;
+    i < 6;
+    i++
+  ) {
 
     result +=
       chars[
         Math.floor(
-          Math.random() * chars.length
+          Math.random() *
+          chars.length
         )
       ];
 
@@ -145,11 +202,26 @@ function generateRoomCode() {
 function showApp() {
 
   if (roomGate) {
-    roomGate.classList.add("hidden");
+
+    roomGate.classList.add(
+      "hidden"
+    );
+
+  }
+
+  if (joinSheet) {
+
+    joinSheet.hidden =
+      true;
+
   }
 
   if (app) {
-    app.classList.remove("hidden");
+
+    app.classList.remove(
+      "hidden"
+    );
+
   }
 
 }
@@ -158,11 +230,19 @@ function showApp() {
 function showRoomGate() {
 
   if (app) {
-    app.classList.add("hidden");
+
+    app.classList.add(
+      "hidden"
+    );
+
   }
 
   if (roomGate) {
-    roomGate.classList.remove("hidden");
+
+    roomGate.classList.remove(
+      "hidden"
+    );
+
   }
 
 }
@@ -170,21 +250,27 @@ function showRoomGate() {
 
 function updateRoomDisplay() {
 
-  const roomLabels =
-    document.querySelectorAll(
+  document
+    .querySelectorAll(
       "[data-room-id]"
-    );
+    )
+    .forEach(el => {
 
-  roomLabels.forEach(el => {
-    el.textContent = roomId || "----";
-  });
+      el.textContent =
+        roomId || "----";
+
+    });
 
   const roomPill =
-    document.getElementById("roomCode");
+    document.getElementById(
+      "roomCode"
+    );
 
   if (roomPill) {
+
     roomPill.textContent =
-      roomId || "----";
+      roomId || "—";
+
   }
 
 }
@@ -199,12 +285,16 @@ async function startCamera() {
   try {
 
     localStream =
-      await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user"
-        },
-        audio: true
-      });
+      await navigator.mediaDevices
+        .getUserMedia({
+
+          video: {
+            facingMode: "user"
+          },
+
+          audio: true
+
+        });
 
 
     if (localVideo) {
@@ -212,15 +302,44 @@ async function startCamera() {
       localVideo.srcObject =
         localStream;
 
-      localVideo.muted = true;
+      localVideo.muted =
+        true;
 
-      localVideo.playsInline = true;
+      localVideo.playsInline =
+        true;
 
       await localVideo
         .play()
         .catch(() => {});
 
     }
+
+
+    const youStatus =
+      document.getElementById(
+        "youStatus"
+      );
+
+    if (youStatus) {
+
+      youStatus.textContent =
+        "● online";
+
+    }
+
+
+    const localPlaceholder =
+      document.getElementById(
+        "localPlaceholder"
+      );
+
+    if (localPlaceholder) {
+
+      localPlaceholder.style.display =
+        "none";
+
+    }
+
 
     console.log(
       "Camera ready"
@@ -324,6 +443,32 @@ async function createCameraPeer(
           .play()
           .catch(() => {});
 
+
+        const partnerStatus =
+          document.getElementById(
+            "partnerStatus"
+          );
+
+        if (partnerStatus) {
+
+          partnerStatus.textContent =
+            "● online";
+
+        }
+
+
+        const remotePlaceholder =
+          document.getElementById(
+            "remotePlaceholder"
+          );
+
+        if (remotePlaceholder) {
+
+          remotePlaceholder.style.display =
+            "none";
+
+        }
+
       }
 
     };
@@ -331,6 +476,9 @@ async function createCameraPeer(
 
   peer.onconnectionstatechange =
     () => {
+
+      if (!peer)
+        return;
 
       console.log(
         "Camera:",
@@ -401,15 +549,20 @@ function getMovieCapture() {
 
 // =====================================================
 // CREATE MOVIE PEER
+// IMPORTANT: DO NOT RECREATE ACTIVE PEER
 // =====================================================
 
 function createMoviePeer() {
 
-  if (moviePeer) {
+  if (
+    moviePeer &&
+    moviePeer.connectionState !==
+      "closed" &&
+    moviePeer.connectionState !==
+      "failed"
+  ) {
 
-    try {
-      moviePeer.close();
-    } catch {}
+    return moviePeer;
 
   }
 
@@ -418,6 +571,15 @@ function createMoviePeer() {
     new RTCPeerConnection(
       ICE_SERVERS
     );
+
+
+  movieOfferSent =
+    false;
+
+  movieRemoteDescriptionSet =
+    false;
+
+  pendingMovieIce = [];
 
 
   moviePeer.onicecandidate =
@@ -460,40 +622,56 @@ function createMoviePeer() {
         return;
 
 
-      // IMPORTANT:
-      // Partner receives movie directly
-      // into the movie player.
+      if (!movie)
+        return;
 
-      if (movie) {
 
-        movie.src = "";
+      // Remove local movie source
 
-        movie.removeAttribute(
-          "src"
+      movie.pause();
+
+      movie.removeAttribute(
+        "src"
+      );
+
+      movie.srcObject =
+        stream;
+
+      movie.controls =
+        true;
+
+      movie.playsInline =
+        true;
+
+      movie.muted =
+        false;
+
+
+      showMovie();
+
+
+      const syncBadge =
+        document.getElementById(
+          "syncBadge"
         );
 
-        movie.srcObject =
-          stream;
+      if (syncBadge) {
 
-        movie.controls = true;
-
-        movie.playsInline = true;
-
-        movie.muted = false;
-
-        showMovie();
-
-        movie
-          .play()
-          .catch(() => {
-
-            toast(
-              "Tap the movie to start it."
-            );
-
-          });
+        syncBadge.textContent =
+          "Partner movie";
 
       }
+
+
+      movie
+        .play()
+        .catch(() => {
+
+          toast(
+            "Tap the movie to start it."
+          );
+
+        });
 
     };
 
@@ -518,6 +696,56 @@ function createMoviePeer() {
 
 
 // =====================================================
+// FLUSH MOVIE ICE
+// =====================================================
+
+async function flushMovieIce() {
+
+  if (!moviePeer)
+    return;
+
+  if (
+    !moviePeer.remoteDescription
+  ) {
+
+    return;
+
+  }
+
+
+  const candidates =
+    pendingMovieIce;
+
+  pendingMovieIce = [];
+
+
+  for (
+    const candidate
+    of candidates
+  ) {
+
+    try {
+
+      await moviePeer
+        .addIceCandidate(
+          candidate
+        );
+
+    } catch (error) {
+
+      console.warn(
+        "Queued movie ICE:",
+        error
+      );
+
+    }
+
+  }
+
+}
+
+
+// =====================================================
 // START MOVIE STREAM
 // =====================================================
 
@@ -530,7 +758,7 @@ async function startMovieStream() {
   if (!partnerSocketId) {
 
     console.log(
-      "Waiting for partner."
+      "Movie waiting for partner."
     );
 
     return;
@@ -542,23 +770,33 @@ async function startMovieStream() {
     return;
 
 
+  if (!movie)
+    return;
+
+
+  // Create capture only once
+
+  if (!movieCaptureStream) {
+
+    movieCaptureStream =
+      getMovieCapture();
+
+  }
+
+
   const stream =
-    getMovieCapture();
+    movieCaptureStream;
 
 
   if (!stream) {
 
     toast(
-      "Chrome cannot stream this video. Try MP4 H.264."
+      "Chrome cannot stream this video. Use MP4 H.264."
     );
 
     return;
 
   }
-
-
-  movieCaptureStream =
-    stream;
 
 
   const videoTrack =
@@ -579,6 +817,8 @@ async function startMovieStream() {
   }
 
 
+  // Reuse movie peer
+
   if (!moviePeer) {
 
     createMoviePeer();
@@ -586,7 +826,7 @@ async function startMovieStream() {
   }
 
 
-  // Replace old movie track
+  // Video sender
 
   if (movieVideoSender) {
 
@@ -606,7 +846,7 @@ async function startMovieStream() {
   }
 
 
-  // Movie audio
+  // Audio sender
 
   if (audioTrack) {
 
@@ -630,16 +870,21 @@ async function startMovieStream() {
   }
 
 
-  // First connection = send offer
+  // Only send one initial offer
 
   if (
     moviePeer.signalingState ===
       "stable" &&
-    !moviePeer.localDescription
+    !movieOfferSent
   ) {
+
+    movieOfferSent =
+      true;
+
 
     const offer =
       await moviePeer.createOffer();
+
 
     await moviePeer.setLocalDescription(
       offer
@@ -672,18 +917,35 @@ async function startMovieStream() {
 
 function showMovie() {
 
-  hasMovie = true;
+  hasMovie =
+    true;
 
 
   const empty =
     document.getElementById(
-      "movieEmpty"
+      "emptyState"
     );
 
   if (empty) {
+
     empty.classList.add(
       "hidden"
     );
+
+  }
+
+
+  const videoWrap =
+    document.getElementById(
+      "videoWrap"
+    );
+
+  if (videoWrap) {
+
+    videoWrap.classList.remove(
+      "no-movie"
+    );
+
   }
 
 
@@ -693,29 +955,44 @@ function showMovie() {
     );
 
   if (tap) {
+
     tap.classList.add(
       "show"
     );
+
   }
 
 
   if (movie) {
+
     movie.classList.add(
       "has-movie"
     );
+
   }
 
 }
 
 
 // =====================================================
-// LOAD MOVIE FILE
+// LOAD MOVIE
 // =====================================================
 
 function loadMovie(file) {
 
   if (!file)
     return;
+
+
+  if (!isHost) {
+
+    toast(
+      "Only the host can choose the movie."
+    );
+
+    return;
+
+  }
 
 
   if (localMovieURL) {
@@ -727,16 +1004,49 @@ function loadMovie(file) {
   }
 
 
-  // Host uses local file
+  // Reset capture from previous movie
+
+  movieCaptureStream =
+    null;
+
+
+  if (movieVideoSender) {
+
+    try {
+
+      movieVideoSender
+        .replaceTrack(null);
+
+    } catch {}
+
+  }
+
+
+  if (movieAudioSender) {
+
+    try {
+
+      movieAudioSender
+        .replaceTrack(null);
+
+    } catch {}
+
+  }
+
 
   if (movie) {
 
-    movie.srcObject = null;
+    movie.pause();
+
+    movie.srcObject =
+      null;
+
 
     localMovieURL =
       URL.createObjectURL(
         file
       );
+
 
     movie.src =
       localMovieURL;
@@ -756,8 +1066,6 @@ function loadMovie(file) {
   showMovie();
 
 
-  // Tell partner the filename
-
   socket.emit(
     "movie-meta",
     {
@@ -767,7 +1075,7 @@ function loadMovie(file) {
 
 
   movie.onloadedmetadata =
-    () => {
+    async () => {
 
       console.log(
         "Movie loaded:",
@@ -777,39 +1085,26 @@ function loadMovie(file) {
 
       if (isHost) {
 
-        setTimeout(
-          () => {
+        try {
 
-            startMovieStream()
-              .catch(error => {
-
-                console.error(
-                  "Movie stream:",
-                  error
-                );
-
-              });
-
-          },
-          300
-        );
-
-      }
-
-    };
+          await movie.play()
+            .catch(() => {});
 
 
-  movie.oncanplay =
-    () => {
+          movieCaptureStream =
+            getMovieCapture();
 
-      if (isHost) {
 
-        startMovieStream()
-          .catch(error => {
+          await startMovieStream();
 
-            console.error(error);
+        } catch (error) {
 
-          });
+          console.error(
+            "Movie stream:",
+            error
+          );
+
+        }
 
       }
 
@@ -820,7 +1115,7 @@ function loadMovie(file) {
     () => {
 
       toast(
-        "This video can't be played. Try MP4 H.264."
+        "This video can't be played. Use MP4 H.264."
       );
 
     };
@@ -838,8 +1133,21 @@ if (chooseMovie) {
     "click",
     () => {
 
+      if (!isHost) {
+
+        toast(
+          "Only the host can choose the movie."
+        );
+
+        return;
+
+      }
+
+
       if (movieInput) {
+
         movieInput.click();
+
       }
 
     }
@@ -858,8 +1166,10 @@ if (movieInput) {
         event.target.files &&
         event.target.files[0];
 
+
       if (!file)
         return;
+
 
       loadMovie(file);
 
@@ -870,8 +1180,75 @@ if (movieInput) {
 
 
 // =====================================================
-// MOVIE PLAYBACK
+// MOVIE CONTROLS
 // =====================================================
+
+const playBtn =
+  document.getElementById(
+    "playBtn"
+  );
+
+const muteBtn =
+  document.getElementById(
+    "muteBtn"
+  );
+
+const seek =
+  document.getElementById(
+    "seek"
+  );
+
+const currentTime =
+  document.getElementById(
+    "currentTime"
+  );
+
+const duration =
+  document.getElementById(
+    "duration"
+  );
+
+const movieTap =
+  document.getElementById(
+    "movieTap"
+  );
+
+const changeMovie =
+  document.getElementById(
+    "changeMovie"
+  );
+
+const fullscreenBtn =
+  document.getElementById(
+    "fullscreenBtn"
+  );
+
+
+function formatTime(seconds) {
+
+  if (!Number.isFinite(seconds))
+    return "00:00";
+
+
+  const mins =
+    Math.floor(
+      seconds / 60
+    );
+
+  const secs =
+    Math.floor(
+      seconds % 60
+    );
+
+
+  return (
+    String(mins).padStart(2, "0") +
+    ":" +
+    String(secs).padStart(2, "0")
+  );
+
+}
+
 
 if (movie) {
 
@@ -881,6 +1258,7 @@ if (movie) {
 
       if (!isHost)
         return;
+
 
       socket.emit(
         "playback",
@@ -902,6 +1280,7 @@ if (movie) {
       if (!isHost)
         return;
 
+
       socket.emit(
         "playback",
         {
@@ -916,11 +1295,71 @@ if (movie) {
 
 
   movie.addEventListener(
+    "timeupdate",
+    () => {
+
+      if (currentTime) {
+
+        currentTime.textContent =
+          formatTime(
+            movie.currentTime
+          );
+
+      }
+
+
+      if (
+        seek &&
+        Number.isFinite(
+          movie.duration
+        )
+      ) {
+
+        seek.value =
+          movie.currentTime;
+
+      }
+
+    }
+  );
+
+
+  movie.addEventListener(
+    "loadedmetadata",
+    () => {
+
+      if (duration) {
+
+        duration.textContent =
+          formatTime(
+            movie.duration
+          );
+
+      }
+
+
+      if (seek) {
+
+        seek.max =
+          Number.isFinite(
+            movie.duration
+          )
+            ? movie.duration
+            : 100;
+
+      }
+
+    }
+  );
+
+
+  movie.addEventListener(
     "seeked",
     () => {
 
       if (!isHost)
         return;
+
 
       socket.emit(
         "playback",
@@ -930,6 +1369,179 @@ if (movie) {
             movie.currentTime
         }
       );
+
+    }
+  );
+
+}
+
+
+if (playBtn) {
+
+  playBtn.addEventListener(
+    "click",
+    () => {
+
+      if (!movie)
+        return;
+
+
+      if (movie.paused) {
+
+        movie.play()
+          .catch(() => {});
+
+      } else {
+
+        movie.pause();
+
+      }
+
+    }
+  );
+
+}
+
+
+if (movieTap) {
+
+  movieTap.addEventListener(
+    "click",
+    () => {
+
+      if (!movie)
+        return;
+
+
+      if (movie.paused) {
+
+        movie.play()
+          .catch(() => {});
+
+      } else {
+
+        movie.pause();
+
+      }
+
+    }
+  );
+
+}
+
+
+if (seek) {
+
+  seek.addEventListener(
+    "input",
+    () => {
+
+      if (!movie)
+        return;
+
+      movie.currentTime =
+        Number(
+          seek.value
+        );
+
+    }
+  );
+
+}
+
+
+if (muteBtn) {
+
+  muteBtn.addEventListener(
+    "click",
+    () => {
+
+      if (!movie)
+        return;
+
+      movie.muted =
+        !movie.muted;
+
+    }
+  );
+
+}
+
+
+if (changeMovie) {
+
+  changeMovie.addEventListener(
+    "click",
+    () => {
+
+      if (!isHost) {
+
+        toast(
+          "Only the host can change the movie."
+        );
+
+        return;
+
+      }
+
+
+      if (movieInput) {
+
+        movieInput.click();
+
+      }
+
+    }
+  );
+
+}
+
+
+if (fullscreenBtn) {
+
+  fullscreenBtn.addEventListener(
+    "click",
+    async () => {
+
+      const videoWrap =
+        document.getElementById(
+          "videoWrap"
+        );
+
+
+      try {
+
+        if (
+          document.fullscreenElement
+        ) {
+
+          await document.exitFullscreen();
+
+        } else if (
+          videoWrap &&
+          videoWrap.requestFullscreen
+        ) {
+
+          await videoWrap
+            .requestFullscreen();
+
+        } else if (
+          movie &&
+          movie.webkitEnterFullscreen
+        ) {
+
+          movie.webkitEnterFullscreen();
+
+        }
+
+      } catch (error) {
+
+        console.warn(
+          "Fullscreen:",
+          error
+        );
+
+      }
 
     }
   );
@@ -967,7 +1579,8 @@ if (createRoomBtn) {
       roomId =
         generateRoomCode();
 
-      isHost = true;
+      isHost =
+        true;
 
       updateRoomDisplay();
 
@@ -987,6 +1600,69 @@ if (createRoomBtn) {
         "Created room:",
         roomId
       );
+
+      toast(
+        "Room created: " +
+        roomId
+      );
+
+    }
+  );
+
+}
+
+
+// =====================================================
+// JOIN PROMPT
+// =====================================================
+
+if (joinPromptBtn) {
+
+  joinPromptBtn.addEventListener(
+    "click",
+    () => {
+
+      if (joinSheet) {
+
+        joinSheet.hidden =
+          false;
+
+      }
+
+
+      if (roomInput) {
+
+        setTimeout(
+          () => {
+            roomInput.focus();
+          },
+          100
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+// =====================================================
+// CLOSE JOIN
+// =====================================================
+
+if (closeJoinBtn) {
+
+  closeJoinBtn.addEventListener(
+    "click",
+    () => {
+
+      if (joinSheet) {
+
+        joinSheet.hidden =
+          true;
+
+      }
 
     }
   );
@@ -1011,7 +1687,9 @@ if (joinRoomBtn) {
 
 
       roomId =
-        cleanRoomId(value);
+        cleanRoomId(
+          value
+        );
 
 
       if (!roomId) {
@@ -1025,7 +1703,9 @@ if (joinRoomBtn) {
       }
 
 
-      isHost = false;
+      isHost =
+        false;
+
 
       updateRoomDisplay();
 
@@ -1066,6 +1746,7 @@ socket.on(
     isHost =
       data.isHost;
 
+
     updateRoomDisplay();
 
     showApp();
@@ -1093,6 +1774,7 @@ socket.on(
     roomId =
       data.roomId ||
       roomId;
+
 
     updateRoomDisplay();
 
@@ -1127,6 +1809,7 @@ socket.on(
 
       }
 
+
       if (
         data.playback.action ===
         "pause"
@@ -1160,6 +1843,19 @@ socket.on(
     );
 
 
+    const partnerStatus =
+      document.getElementById(
+        "partnerStatus"
+      );
+
+    if (partnerStatus) {
+
+      partnerStatus.textContent =
+        "● connecting";
+
+    }
+
+
     if (isHost) {
 
       await createCameraPeer(
@@ -1181,13 +1877,14 @@ socket.on(
             .catch(error => {
 
               console.error(
+                "Movie start:",
                 error
               );
 
             });
 
         },
-        700
+        1000
       );
 
     }
@@ -1229,13 +1926,14 @@ socket.on(
             .catch(error => {
 
               console.error(
+                "Movie start:",
                 error
               );
 
             });
 
         },
-        700
+        1000
       );
 
     }
@@ -1265,7 +1963,7 @@ socket.on(
       try {
 
 
-        // PARTNER RECEIVES OFFER
+        // OFFER
 
         if (
           data.type ===
@@ -1273,7 +1971,9 @@ socket.on(
         ) {
 
           if (!moviePeer) {
+
             createMoviePeer();
+
           }
 
 
@@ -1283,6 +1983,13 @@ socket.on(
                 data.sdp
               )
             );
+
+
+          movieRemoteDescriptionSet =
+            true;
+
+
+          await flushMovieIce();
 
 
           const answer =
@@ -1311,12 +2018,13 @@ socket.on(
             "Movie answer sent"
           );
 
+
           return;
 
         }
 
 
-        // HOST RECEIVES ANSWER
+        // ANSWER
 
         if (
           data.type ===
@@ -1335,33 +2043,66 @@ socket.on(
             );
 
 
+          movieRemoteDescriptionSet =
+            true;
+
+
+          await flushMovieIce();
+
+
           console.log(
             "Movie answer received"
           );
+
 
           return;
 
         }
 
 
-        // MOVIE ICE
+        // ICE
 
         if (
           data.type ===
           "ice"
         ) {
 
-          if (!moviePeer)
+          if (!moviePeer) {
+
+            createMoviePeer();
+
+          }
+
+
+          const candidate =
+            new RTCIceCandidate(
+              data.candidate
+            );
+
+
+          if (
+            !movieRemoteDescriptionSet &&
+            !moviePeer.remoteDescription
+          ) {
+
+            pendingMovieIce.push(
+              candidate
+            );
+
+            console.log(
+              "Movie ICE queued"
+            );
+
             return;
+
+          }
 
 
           try {
 
             await moviePeer
               .addIceCandidate(
-                new RTCIceCandidate(
-                  data.candidate
-                )
+                candidate
               );
 
           } catch (error) {
@@ -1375,12 +2116,15 @@ socket.on(
 
         }
 
-
       } catch (error) {
 
         console.error(
           "Movie WebRTC:",
           error
+        );
+
+        toast(
+          "Movie connection failed. Try again."
         );
 
       }
@@ -1396,7 +2140,6 @@ socket.on(
     // =================================================
 
     try {
-
 
       if (
         data.type ===
@@ -1421,7 +2164,8 @@ socket.on(
 
 
         const answer =
-          await peer.createAnswer();
+          await peer
+            .createAnswer();
 
 
         await peer
@@ -1477,15 +2221,25 @@ socket.on(
           return;
 
 
-        await peer
-          .addIceCandidate(
-            new RTCIceCandidate(
-              data.candidate
-            )
+        try {
+
+          await peer
+            .addIceCandidate(
+              new RTCIceCandidate(
+                data.candidate
+              )
+            );
+
+        } catch (error) {
+
+          console.warn(
+            "Camera ICE:",
+            error
           );
 
-      }
+        }
 
+      }
 
     } catch (error) {
 
@@ -1511,6 +2265,7 @@ socket.on(
     if (!movie)
       return;
 
+
     if (isHost)
       return;
 
@@ -1521,7 +2276,13 @@ socket.on(
     ) {
 
       movie.play()
-        .catch(() => {});
+        .catch(() => {
+
+          toast(
+            "Tap the movie to start it."
+          );
+
+        });
 
     }
 
@@ -1534,11 +2295,6 @@ socket.on(
       movie.pause();
 
     }
-
-
-    // Remote MediaStream is not normally
-    // seekable, so don't set currentTime
-    // on the partner device.
 
   }
 );
@@ -1582,11 +2338,52 @@ socket.on(
     }
 
 
-    moviePeer = null;
+    moviePeer =
+      null;
 
-    movieVideoSender = null;
-    movieAudioSender = null;
-    movieCaptureStream = null;
+    movieVideoSender =
+      null;
+
+    movieAudioSender =
+      null;
+
+    movieCaptureStream =
+      null;
+
+    movieOfferSent =
+      false;
+
+    movieRemoteDescriptionSet =
+      false;
+
+    pendingMovieIce =
+      [];
+
+
+    const partnerStatus =
+      document.getElementById(
+        "partnerStatus"
+      );
+
+    if (partnerStatus) {
+
+      partnerStatus.textContent =
+        "○ waiting";
+
+    }
+
+
+    const remotePlaceholder =
+      document.getElementById(
+        "remotePlaceholder"
+      );
+
+    if (remotePlaceholder) {
+
+      remotePlaceholder.style.display =
+        "";
+
+    }
 
 
     console.log(
@@ -1650,7 +2447,7 @@ const sendChat =
 
 const chat =
   document.getElementById(
-    "chat"
+    "messages"
   );
 
 
@@ -1661,6 +2458,18 @@ function addChatMessage(
 
   if (!chat)
     return;
+
+
+  const empty =
+    document.getElementById(
+      "messageEmpty"
+    );
+
+  if (empty) {
+
+    empty.remove();
+
+  }
 
 
   const message =
@@ -1728,7 +2537,35 @@ if (sendChat) {
 
   sendChat.addEventListener(
     "click",
-    sendMessage
+    event => {
+
+      event.preventDefault();
+
+      sendMessage();
+
+    }
+  );
+
+}
+
+
+const chatForm =
+  document.getElementById(
+    "chatForm"
+  );
+
+
+if (chatForm) {
+
+  chatForm.addEventListener(
+    "submit",
+    event => {
+
+      event.preventDefault();
+
+      sendMessage();
+
+    }
   );
 
 }
@@ -1744,6 +2581,8 @@ if (chatInput) {
         event.key ===
         "Enter"
       ) {
+
+        event.preventDefault();
 
         sendMessage();
 
@@ -1841,7 +2680,9 @@ function showReaction(
 
   setTimeout(
     () => {
+
       el.remove();
+
     },
     1800
   );
@@ -1920,6 +2761,112 @@ if (cameraButton) {
 
 
 // =====================================================
+// SHARE ROOM
+// =====================================================
+
+const shareBtn =
+  document.getElementById(
+    "shareBtn"
+  );
+
+
+if (shareBtn) {
+
+  shareBtn.addEventListener(
+    "click",
+    async () => {
+
+      const text =
+        `Join my MovieDate room: ${roomId}`;
+
+
+      if (
+        navigator.share
+      ) {
+
+        try {
+
+          await navigator.share({
+            title: "MovieDate",
+            text
+          });
+
+          return;
+
+        } catch {}
+
+      }
+
+
+      try {
+
+        await navigator.clipboard.writeText(
+          roomId
+        );
+
+        toast(
+          "Room code copied: " +
+          roomId
+        );
+
+      } catch {
+
+        toast(
+          "Room code: " +
+          roomId
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+// =====================================================
+// ROOM PILL
+// =====================================================
+
+const roomPill =
+  document.getElementById(
+    "roomPill"
+  );
+
+
+if (roomPill) {
+
+  roomPill.addEventListener(
+    "click",
+    async () => {
+
+      try {
+
+        await navigator.clipboard.writeText(
+          roomId
+        );
+
+        toast(
+          "Room code copied: " +
+          roomId
+        );
+
+      } catch {
+
+        toast(
+          "Room code: " +
+          roomId
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+// =====================================================
 // EXIT
 // =====================================================
 
@@ -1957,8 +2904,18 @@ if (exitRoom) {
         localStream
           .getTracks()
           .forEach(
-            track => track.stop()
+            track =>
+              track.stop()
           );
+
+      }
+
+
+      if (localMovieURL) {
+
+        URL.revokeObjectURL(
+          localMovieURL
+        );
 
       }
 
@@ -1978,5 +2935,5 @@ if (exitRoom) {
 showRoomGate();
 
 console.log(
-  "MovieDate latest client loaded."
+  "MovieDate client loaded."
 );
