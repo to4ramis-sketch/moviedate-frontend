@@ -1,6 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -11,15 +13,21 @@
   <title>MovieDate</title>
 
   <link rel="stylesheet" href="./style.css">
+
 </head>
+
 
 <body>
 
-  <!-- =========================================
-       ROOM START SCREEN
-  ========================================== -->
 
-  <div class="room-gate" id="roomGate">
+  <!-- =====================================================
+       ROOM START SCREEN
+       ===================================================== -->
+
+  <div
+    id="roomGate"
+    class="room-gate"
+  >
 
     <div class="gate-card">
 
@@ -31,6 +39,7 @@
         Watch together. Anywhere.
       </p>
 
+
       <button
         id="createRoomBtn"
         class="gate-primary"
@@ -38,6 +47,7 @@
       >
         Create a room
       </button>
+
 
       <button
         id="joinPromptBtn"
@@ -52,30 +62,38 @@
   </div>
 
 
-  <!-- =========================================
-       JOIN ROOM SHEET
-  ========================================== -->
+
+  <!-- =====================================================
+       JOIN ROOM
+       ===================================================== -->
 
   <div
-    class="join-sheet hidden"
     id="joinSheet"
+    class="join-sheet hidden"
   >
 
     <div class="join-card">
+
 
       <button
         id="closeJoinBtn"
         class="join-close"
         type="button"
+        aria-label="Close"
       >
         ×
       </button>
 
-      <h2>Join a room</h2>
+
+      <h2>
+        Join a room
+      </h2>
+
 
       <p>
         Enter the room code from your partner.
       </p>
+
 
       <input
         id="roomCodeInput"
@@ -84,7 +102,9 @@
         placeholder="ROOM CODE"
         autocomplete="off"
         autocapitalize="characters"
+        spellcheck="false"
       >
+
 
       <button
         id="joinRoomBtn"
@@ -94,32 +114,47 @@
         Join room
       </button>
 
+
     </div>
 
   </div>
 
 
-  <!-- =========================================
-       WATCH APP
-  ========================================== -->
+
+  <!-- =====================================================
+       MAIN WATCH APP
+       ===================================================== -->
 
   <main
-    class="app hidden"
     id="app"
+    class="app hidden"
   >
 
-    <!-- TOP BAR -->
+
+    <!-- =================================================
+         TOP BAR
+         ================================================= -->
 
     <header class="topbar">
+
 
       <div class="brand">
         Movie<span>Date</span>
       </div>
 
+
       <div class="room-info">
-        <span>ROOM</span>
-        <strong id="roomCode">----</strong>
+
+        <span>
+          ROOM
+        </span>
+
+        <strong id="roomCode">
+          ----
+        </strong>
+
       </div>
+
 
       <button
         id="shareRoomBtn"
@@ -128,6 +163,7 @@
         Share
       </button>
 
+
       <button
         id="exitBtn"
         type="button"
@@ -135,30 +171,42 @@
         Exit
       </button>
 
+
     </header>
 
 
-    <!-- =====================================
-         WATCH AREA
-    ====================================== -->
+
+    <!-- =================================================
+         WATCH LAYOUT
+         ================================================= -->
 
     <section class="watch-layout">
 
 
-      <!-- MOVIE -->
+      <!-- ===============================================
+           MOVIE
+           =============================================== -->
 
       <div class="movie-section">
 
+
         <div
-          class="movie-container"
           id="movieTap"
+          class="movie-container"
         >
+
+
+          <!-- MOVIE VIDEO -->
 
           <video
             id="movie"
             playsinline
             preload="metadata"
           ></video>
+
+
+
+          <!-- EMPTY MOVIE STATE -->
 
           <div
             id="emptyState"
@@ -169,9 +217,11 @@
               Choose a movie
             </div>
 
+
             <div class="empty-text">
               Pick a movie from your device
             </div>
+
 
             <button
               id="chooseMovieBtn"
@@ -179,6 +229,7 @@
             >
               Choose movie
             </button>
+
 
             <input
               id="movieFile"
@@ -190,16 +241,20 @@
           </div>
 
 
+
           <!-- MOVIE CONTROLS -->
 
           <div class="movie-controls">
 
+
             <button
               id="playBtn"
               type="button"
+              aria-label="Play or pause"
             >
               ▶
             </button>
+
 
             <input
               id="seekBar"
@@ -207,45 +262,59 @@
               min="0"
               max="100"
               value="0"
+              step="0.1"
+              aria-label="Movie progress"
             >
+
 
             <span id="movieTime">
               00:00
             </span>
 
+
             <button
               id="muteBtn"
               type="button"
+              aria-label="Mute"
             >
               🔊
             </button>
 
+
             <button
               id="fullscreenBtn"
               type="button"
+              aria-label="Fullscreen"
             >
               ⛶
             </button>
 
+
           </div>
 
+
         </div>
+
 
       </div>
 
 
-      <!-- =====================================
-           PEOPLE / CHAT
-      ====================================== -->
+
+      <!-- ===============================================
+           PEOPLE + CHAT
+           =============================================== -->
 
       <aside class="people">
 
 
-        <!-- CAMERA 1 -->
+        <!-- =============================================
+             YOU
+             ============================================= -->
 
         <div class="person-card">
 
           <div class="camera-box">
+
 
             <video
               id="localVideo"
@@ -254,20 +323,26 @@
               playsinline
             ></video>
 
+
             <div class="person-name">
               You
             </div>
+
 
           </div>
 
         </div>
 
 
-        <!-- CAMERA 2 -->
+
+        <!-- =============================================
+             PARTNER
+             ============================================= -->
 
         <div class="person-card">
 
           <div class="camera-box">
+
 
             <video
               id="remoteVideo"
@@ -275,28 +350,36 @@
               playsinline
             ></video>
 
+
             <div class="person-name">
               Partner
             </div>
+
 
           </div>
 
         </div>
 
 
-        <!-- CHAT -->
+
+        <!-- =============================================
+             CHAT
+             ============================================= -->
 
         <div class="chat-panel">
+
 
           <div
             id="messages"
             class="messages"
           ></div>
 
+
           <form
             id="chatForm"
             class="chat-form"
           >
+
 
             <input
               id="chatInput"
@@ -305,6 +388,7 @@
               autocomplete="off"
             >
 
+
             <button
               id="sendChat"
               type="submit"
@@ -312,92 +396,129 @@
               Send
             </button>
 
+
           </form>
+
 
         </div>
 
+
       </aside>
+
 
     </section>
 
 
-    <!-- =====================================
+
+    <!-- =================================================
          BOTTOM CONTROLS
-    ====================================== -->
+         ================================================= -->
 
     <footer class="bottom-controls">
+
+
+      <!-- MIC -->
 
       <button
         id="micBtn"
         type="button"
+        aria-label="Microphone"
       >
         🎙
       </button>
 
+
+      <!-- CAMERA -->
+
       <button
         id="cameraBtn"
         type="button"
+        aria-label="Camera"
       >
         📷
       </button>
 
+
+      <!-- SCREEN -->
+
       <button
         id="shareBtn"
         type="button"
+        aria-label="Share screen"
       >
         🖥
       </button>
 
+
+
+      <!-- REACTIONS -->
+
       <div class="reactions">
+
 
         <button
           class="reaction-btn"
           data-emoji="❤️"
           type="button"
+          aria-label="Love"
         >
           ❤️
         </button>
+
 
         <button
           class="reaction-btn"
           data-emoji="🥰"
           type="button"
+          aria-label="Adore"
         >
           🥰
         </button>
+
 
         <button
           class="reaction-btn"
           data-emoji="😘"
           type="button"
+          aria-label="Kiss"
         >
           😘
         </button>
+
 
         <button
           class="reaction-btn"
           data-emoji="😂"
           type="button"
+          aria-label="Funny"
         >
           😂
         </button>
+
 
         <button
           class="reaction-btn"
           data-emoji="🔥"
           type="button"
+          aria-label="Hot"
         >
           🔥
         </button>
 
+
       </div>
 
+
     </footer>
+
 
   </main>
 
 
-  <!-- TOAST -->
+
+  <!-- =====================================================
+       TOAST
+       ===================================================== -->
 
   <div
     id="toast"
@@ -405,13 +526,24 @@
   ></div>
 
 
-  <!-- SOCKET.IO -->
 
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <!-- =====================================================
+       SOCKET.IO
+       ===================================================== -->
 
-  <!-- APP -->
+  <script
+    src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+  ></script>
+
+
+
+  <!-- =====================================================
+       MOVIEDATE APP
+       ===================================================== -->
 
   <script src="./app.js"></script>
 
+
 </body>
+
 </html>
