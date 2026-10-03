@@ -1,1046 +1,967 @@
 const BACKEND_URL =
   "https://moviedate-backend-production.up.railway.app";
 
-
-/* =========================================================
-   SOCKET
-========================================================= */
-
 const socket = io(BACKEND_URL, {
   transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000
+  reconnection: true
 });
 
+const movie = document.getElementById("movie");
+const movieInput = document.getElementById("movieInput");
 
-/* =========================================================
-   STATE
-========================================================= */
-
-const params = new URLSearchParams(location.search);
-
-let roomId =
-  (params.get("room") || "").trim().toUpperCase();
-
+let roomId = "";
 let isHost = false;
 
-let localStream = null;
-let peer = null;
+let localMovieURL = null;
+let hasMovie = false;
 
 let partnerSocketId = null;
 
-let joinedOnServer = false;
-let joinRequested = false;
+// CAMERA WEBRTC
+let peer = null;
 
-let pendingIceCandidates = [];
+// MOVIE WEBRTC
+let moviePeer = null;
+let movieVideoSender = null;
+let movieAudioSender = null;
+let movieCaptureStream = null;
 
-let movieObjectURL = null;
+const ICE_SERVERS = {
+  iceServers: [
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:stun.cloudflare.com:3478"
+      ]
+    }
+  ]
+};
 
-let hasMovie = false;
 
-let ignorePlaybackEvent = false;
-
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-const $ = id => document.getElementById(id);
-
-const movie = $("movie");
-const movieFile = $("movieFile");
-
-const localVideo = $("localVideo");
-const remoteVideo = $("remoteVideo");
-
+// --------------------------------------------------
+// BASIC HELPERS
+// --------------------------------------------------
 
 function toast(message) {
+  console.log("[MovieDate]", message);
 
-  const el = $("toast");
+  const el = document.getElementById("toast");
 
-  if (!el) return;
+  if (!el) {
+    alert(message);
+    return;
+  }
 
   el.textContent = message;
-
   el.classList.add("show");
 
-  clearTimeout(el._timer);
+  clearTimeout(window.__toastTimer);
 
-  el._timer = setTimeout(() => {
+  window.__toastTimer = setTimeout(() => {
     el.classList.remove("show");
-  }, 2200);
+  }, 2500);
 }
 
 
-function formatTime(seconds) {
+function showMovieUI() {
+  hasMovie = true;
 
-  if (!Number.isFinite(seconds)) {
-    return "00:00";
-  }
+  const empty = document.getElementById("movieEmpty");
+  const tap = document.getElementById("movieTap");
 
-  seconds = Math.max(0, Math.floor(seconds));
+  if (empty) empty.classList.add("hidden");
 
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  if (tap) tap.classList.add("show");
+
+  movie.classList.add("has-movie");
 }
 
 
-function randomRoom() {
+function hideMovieUI() {
+  hasMovie = false;
 
-  return Math.random()
-    .toString(36)
-    .slice(2, 7)
-    .toUpperCase();
+  const empty = document.getElementById("movieEmpty");
+  const tap = document.getElementById("movieTap");
+
+  if (empty) empty.classList.remove("hidden");
+
+  if (tap) tap.classList.remove("show");
+
+  movie.classList.remove("has-movie");
 }
 
 
-/* =========================================================
-   UI STATUS
-========================================================= */
-
-function setServerStatus(connected) {
-
-  const dot = $("roomStatus");
-
-  if (dot) {
-    dot.classList.toggle("on", connected);
-  }
-}
-
-
-function setSyncStatus(text) {
-
-  const badge = $("syncBadge");
-
-  if (badge) {
-    badge.textContent = text;
-  }
-}
-
-
-function setPartnerStatus(text, connected = false) {
-
-  const el = $("partnerStatus");
-
-  if (!el) return;
-
-  el.textContent = text;
-
-  el.classList.toggle("connected", connected);
-}
-
-
-function updateRoomUI() {
-
-  if ($("roomCode")) {
-    $("roomCode").textContent = roomId || "—";
-  }
-
-  const gate = $("roomGate");
-
-  if (!gate) return;
-
-  gate.classList.toggle(
-    "show",
-    !roomId
-  );
-}
-
-
-function updateRoomURL() {
-
-  if (!roomId) return;
-
-  history.replaceState(
-    {},
-    "",
-    `?room=${encodeURIComponent(roomId)}`
-  );
-}
-
-
-/* =========================================================
-   CAMERA
-========================================================= */
+// --------------------------------------------------
+// CAMERA
+// --------------------------------------------------
 
 async function startCamera() {
-
-  if (localStream) {
-    return localStream;
-  }
-
-  if (!navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia) {
-
-    toast("Camera is not supported here.");
-
-    return null;
-  }
-
   try {
-
-    setSyncStatus("Starting camera…");
-
-    localStream =
-      await navigator.mediaDevices.getUserMedia({
-
-        video: {
-          facingMode: "user",
-          width: {
-            ideal: 640
-          },
-          height: {
-            ideal: 360
-          }
-        },
-
-        audio: true
-
-      });
-
-
-    localVideo.srcObject = localStream;
-
-    localVideo.muted = true;
-
-    await localVideo.play().catch(() => {});
-
-
-    $("localPlaceholder").style.display =
-      "none";
-
-
-    $("youStatus").textContent =
-      "● live";
-
-
-    console.log("CAMERA READY");
-
-    return localStream;
-
-  } catch (error) {
-
-    console.error(
-      "CAMERA ERROR:",
-      error
-    );
-
-    $("youStatus").textContent =
-      "○ camera off";
-
-
-    toast(
-      "Allow camera and microphone access."
-    );
-
-    return null;
-  }
-}
-
-
-/* =========================================================
-   ROOM JOIN
-========================================================= */
-
-async function requestJoin() {
-
-  if (!roomId) return;
-
-  if (!socket.connected) {
-
-    setSyncStatus(
-      "Connecting server…"
-    );
-
-    return;
-  }
-
-
-  if (
-    joinedOnServer ||
-    joinRequested
-  ) {
-    return;
-  }
-
-
-  /*
-    IMPORTANT FIX:
-
-    Camera must be ready BEFORE
-    joining the room.
-  */
-
-  const stream =
-    await startCamera();
-
-
-  if (!stream) {
-
-    toast(
-      "Camera access is needed for the watch room."
-    );
-
-    return;
-  }
-
-
-  joinRequested = true;
-
-  setSyncStatus(
-    "Joining room…"
-  );
-
-  setPartnerStatus(
-    "○ joining…"
-  );
-
-
-  console.log(
-    "JOINING ROOM:",
-    roomId
-  );
-
-
-  socket.emit(
-    "join-room",
-    roomId
-  );
-}
-
-
-async function createRoom() {
-
-  roomId = randomRoom();
-
-  isHost = true;
-
-  joinedOnServer = false;
-
-  joinRequested = false;
-
-  partnerSocketId = null;
-
-
-  updateRoomURL();
-
-  updateRoomUI();
-
-
-  setPartnerStatus(
-    "○ waiting"
-  );
-
-  setSyncStatus(
-    "Starting…"
-  );
-
-
-  await requestJoin();
-
-
-  toast(
-    "Room created — share the link"
-  );
-}
-
-
-async function joinExistingRoom() {
-
-  if (!roomId) return;
-
-  roomId =
-    roomId.trim().toUpperCase();
-
-
-  updateRoomURL();
-
-  updateRoomUI();
-
-
-  await requestJoin();
-}
-
-
-/* =========================================================
-   SOCKET EVENTS
-========================================================= */
-
-socket.on(
-  "connect",
-  async () => {
-
-    console.log(
-      "SOCKET CONNECTED:",
-      socket.id
-    );
-
-
-    setServerStatus(true);
-
-
-    joinedOnServer = false;
-
-    joinRequested = false;
-
-
-    if (roomId) {
-
-      await requestJoin();
-
-    } else {
-
-      setSyncStatus(
-        "Ready"
-      );
-    }
-
-  }
-);
-
-
-socket.on(
-  "disconnect",
-  () => {
-
-    console.log(
-      "SOCKET DISCONNECTED"
-    );
-
-
-    setServerStatus(false);
-
-    setSyncStatus(
-      "Reconnecting…"
-    );
-
-    setPartnerStatus(
-      "○ reconnecting…"
-    );
-
-  }
-);
-
-
-socket.on(
-  "room-joined",
-  data => {
-
-    console.log(
-      "ROOM JOINED:",
-      data
-    );
-
-
-    roomId =
-      String(data.roomId)
-        .toUpperCase();
-
-
-    isHost =
-      Boolean(data.isHost);
-
-
-    joinedOnServer = true;
-
-    joinRequested = false;
-
-
-    updateRoomURL();
-
-    updateRoomUI();
-
-
-    if (data.participants >= 2) {
-
-      setSyncStatus(
-        "Connecting…"
-      );
-
-      setPartnerStatus(
-        "◌ connecting…"
-      );
-
-    } else {
-
-      setSyncStatus(
-        "Waiting for partner"
-      );
-
-      setPartnerStatus(
-        "○ waiting"
-      );
-    }
-
-  }
-);
-
-
-socket.on(
-  "room-state",
-  data => {
-
-    console.log(
-      "ROOM STATE:",
-      data
-    );
-
-
-    if (data.roomId) {
-
-      roomId =
-        String(data.roomId)
-          .toUpperCase();
-
-      updateRoomURL();
-
-      updateRoomUI();
-
-    }
-
-
-    isHost =
-      data.hostSocketId ===
-      socket.id;
-
-
-    if (
-      data.participants === 1
-    ) {
-
-      setSyncStatus(
-        "Waiting for partner"
-      );
-
-      setPartnerStatus(
-        "○ waiting"
-      );
-
-    }
-
-
-    if (
-      data.participants === 2
-    ) {
-
-      setSyncStatus(
-        "Connecting…"
-      );
-
-      setPartnerStatus(
-        "◌ connecting…"
-      );
-
-    }
-
-
-    if (data.movie) {
-
-      /*
-        We intentionally don't try
-        to load the partner's movie.
-
-        Socket.IO currently sends
-        only the filename.
-      */
-
-      console.log(
-        "Partner movie:",
-        data.movie
-      );
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   PARTNER JOINED
-========================================================= */
-
-socket.on(
-  "peer-joined",
-  data => {
-
-    console.log(
-      "PARTNER JOINED:",
-      data
-    );
-
-
-    partnerSocketId =
-      data.socketId ||
-      partnerSocketId;
-
-
-    setPartnerStatus(
-      "◌ connecting…"
-    );
-
-    setSyncStatus(
-      "Connecting…"
-    );
-
-  }
-);
-
-
-socket.on(
-  "peer-ready",
-  async data => {
-
-    console.log(
-      "PEER READY:",
-      data
-    );
-
-
-    partnerSocketId =
-      data.socketId ||
-      partnerSocketId;
-
-
-    setPartnerStatus(
-      "◌ connecting…"
-    );
-
-
-    /*
-      Host creates the offer.
-    */
-
-    if (isHost) {
-
-      await createPeer(true);
-
-    }
-
-  }
-);
-
-
-socket.on(
-  "peer-left",
-  () => {
-
-    console.log(
-      "PARTNER LEFT"
-    );
-
-
-    partnerSocketId = null;
-
-
-    if (peer) {
-
-      peer.close();
-
-      peer = null;
-
-    }
-
-
-    remoteVideo.srcObject =
-      null;
-
-
-    $("remotePlaceholder")
-      .style.display =
-      "grid";
-
-
-    setPartnerStatus(
-      "○ waiting"
-    );
-
-
-    setSyncStatus(
-      "Waiting for partner"
-    );
-
-  }
-);
-
-
-socket.on(
-  "room-full",
-  () => {
-
-    joinedOnServer = false;
-
-    joinRequested = false;
-
-
-    setSyncStatus(
-      "Room full"
-    );
-
-
-    toast(
-      "This room already has two people."
-    );
-
-  }
-);
-
-
-socket.on(
-  "room-error",
-  data => {
-
-    joinedOnServer = false;
-
-    joinRequested = false;
-
-
-    console.error(
-      "ROOM ERROR:",
-      data
-    );
-
-
-    setSyncStatus(
-      "Room error"
-    );
-
-
-    toast(
-      data.message ||
-      "Could not join room."
-    );
-
-  }
-);
-
-
-/* =========================================================
-   WEBRTC
-========================================================= */
-
-async function createPeer(
-  offerer = false
-) {
-
-  /*
-    Close old connection.
-  */
-
-  if (peer) {
-
-    peer.ontrack = null;
-
-    peer.onicecandidate = null;
-
-    peer.onconnectionstatechange = null;
-
-    peer.close();
-
-    peer = null;
-
-  }
-
-
-  pendingIceCandidates = [];
-
-
-  peer =
-    new RTCPeerConnection({
-
-      iceServers: [
-
-        {
-          urls:
-            "stun:stun.l.google.com:19302"
-        },
-
-        {
-          urls:
-            "stun:stun.cloudflare.com:3478"
-        }
-
-      ]
-
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user"
+      },
+      audio: true
     });
 
+    const localVideo = document.getElementById("localVideo");
 
-  /*
-    Add camera + microphone.
-  */
+    if (localVideo) {
+      localVideo.srcObject = stream;
+      localVideo.muted = true;
+      localVideo.playsInline = true;
 
-  if (localStream) {
+      await localVideo.play().catch(() => {});
+    }
 
-    localStream
-      .getTracks()
-      .forEach(track => {
+    window.localStream = stream;
 
-        peer.addTrack(
-          track,
-          localStream
-        );
+    console.log("Camera ready");
 
-      });
+  } catch (error) {
+    console.error("Camera error:", error);
+    toast("Camera or microphone permission was denied.");
+  }
+}
 
+
+// --------------------------------------------------
+// CAMERA WEBRTC
+// --------------------------------------------------
+
+async function createPeer(offerer = false) {
+
+  if (peer) {
+    try {
+      peer.close();
+    } catch {}
   }
 
+  peer = new RTCPeerConnection(ICE_SERVERS);
 
-  /*
-    Receive partner.
-  */
+  const localStream = window.localStream;
 
-  peer.ontrack = async event => {
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      peer.addTrack(track, localStream);
+    });
+  }
+
+  peer.onicecandidate = event => {
+    if (!event.candidate) return;
+
+    socket.emit("webrtc", {
+      channel: "camera",
+      type: "ice",
+      candidate: event.candidate
+    });
+  };
+
+  peer.ontrack = event => {
+
+    const remoteVideo =
+      document.getElementById("remoteVideo");
+
+    if (!remoteVideo) return;
+
+    if (event.streams && event.streams[0]) {
+      remoteVideo.srcObject = event.streams[0];
+      remoteVideo.autoplay = true;
+      remoteVideo.playsInline = true;
+
+      remoteVideo.play().catch(() => {});
+    }
+  };
+
+  peer.onconnectionstatechange = () => {
+    console.log(
+      "Camera connection:",
+      peer.connectionState
+    );
+  };
+
+  if (offerer) {
+
+    const offer = await peer.createOffer();
+
+    await peer.setLocalDescription(offer);
+
+    socket.emit("webrtc", {
+      channel: "camera",
+      type: "offer",
+      sdp: peer.localDescription
+    });
+  }
+}
+
+
+// --------------------------------------------------
+// MOVIE WEBRTC
+// --------------------------------------------------
+
+function getMovieCaptureStream() {
+
+  if (!movie) return null;
+
+  if (typeof movie.captureStream === "function") {
+    return movie.captureStream();
+  }
+
+  if (typeof movie.mozCaptureStream === "function") {
+    return movie.mozCaptureStream();
+  }
+
+  return null;
+}
+
+
+// Create the movie peer connection.
+
+function createMoviePeer() {
+
+  if (moviePeer) {
+    try {
+      moviePeer.close();
+    } catch {}
+  }
+
+  moviePeer = new RTCPeerConnection(ICE_SERVERS);
+
+  moviePeer.onicecandidate = event => {
+
+    if (!event.candidate) return;
+
+    socket.emit("webrtc", {
+      channel: "movie",
+      type: "ice",
+      candidate: event.candidate
+    });
+  };
+
+
+  // Partner receives the movie here.
+
+  moviePeer.ontrack = event => {
 
     console.log(
-      "REMOTE TRACK RECEIVED"
+      "MOVIE TRACK RECEIVED",
+      event.track.kind
     );
 
-
     const stream =
-      event.streams &&
-      event.streams[0];
-
+      event.streams && event.streams[0]
+        ? event.streams[0]
+        : null;
 
     if (!stream) return;
 
 
-    remoteVideo.srcObject =
-      stream;
+    // Only the partner should replace
+    // the movie element with the remote stream.
+
+    if (!isHost) {
+
+      movie.src = "";
+      movie.removeAttribute("src");
+
+      movie.srcObject = stream;
+
+      movie.controls = true;
+
+      showMovieUI();
+
+      movie.muted = false;
+      movie.playsInline = true;
+
+      movie.play().catch(() => {
+
+        toast(
+          "Tap the movie to start playback."
+        );
+
+      });
+
+      console.log("REMOTE MOVIE CONNECTED");
+    }
+  };
 
 
-    $("remotePlaceholder")
-      .style.display =
-      "none";
+  moviePeer.onconnectionstatechange = () => {
+
+    if (!moviePeer) return;
+
+    console.log(
+      "Movie connection:",
+      moviePeer.connectionState
+    );
+
+    if (
+      moviePeer.connectionState === "failed" ||
+      moviePeer.connectionState === "closed"
+    ) {
+      movieVideoSender = null;
+      movieAudioSender = null;
+    }
+  };
+
+  return moviePeer;
+}
 
 
-    try {
+// --------------------------------------------------
+// START MOVIE STREAMING
+// --------------------------------------------------
 
-      await remoteVideo.play();
+async function startMovieStreaming() {
 
-    } catch (error) {
+  // Only the person who selected the movie
+  // sends it.
 
-      console.log(
-        "Remote autoplay waiting:",
-        error
+  if (!isHost) return;
+
+  if (!partnerSocketId) {
+    console.log(
+      "Waiting for partner before streaming movie."
+    );
+    return;
+  }
+
+  if (!hasMovie) return;
+
+  if (!movie) return;
+
+
+  // captureStream is the important part.
+
+  const stream = getMovieCaptureStream();
+
+  if (!stream) {
+
+    toast(
+      "Your Chrome browser cannot stream this video."
+    );
+
+    console.error(
+      "captureStream() is not supported."
+    );
+
+    return;
+  }
+
+
+  movieCaptureStream = stream;
+
+  const videoTrack =
+    stream.getVideoTracks()[0];
+
+  const audioTrack =
+    stream.getAudioTracks()[0];
+
+
+  if (!videoTrack) {
+
+    toast(
+      "Could not capture the movie video."
+    );
+
+    return;
+  }
+
+
+  // Create movie peer if needed.
+
+  if (!moviePeer) {
+    createMoviePeer();
+  }
+
+
+  // If we already have senders,
+  // replace the movie tracks.
+
+  if (movieVideoSender) {
+
+    await movieVideoSender.replaceTrack(
+      videoTrack
+    );
+
+  } else {
+
+    movieVideoSender =
+      moviePeer.addTrack(
+        videoTrack,
+        stream
+      );
+  }
+
+
+  if (audioTrack) {
+
+    if (movieAudioSender) {
+
+      await movieAudioSender.replaceTrack(
+        audioTrack
       );
 
+    } else {
+
+      movieAudioSender =
+        moviePeer.addTrack(
+          audioTrack,
+          stream
+        );
+    }
+
+  } else if (movieAudioSender) {
+
+    await movieAudioSender.replaceTrack(null);
+  }
+
+
+  // If this is the first movie connection,
+  // create the offer.
+
+  if (
+    moviePeer.signalingState === "stable" &&
+    !moviePeer.localDescription
+  ) {
+
+    const offer =
+      await moviePeer.createOffer();
+
+    await moviePeer.setLocalDescription(
+      offer
+    );
+
+    socket.emit("webrtc", {
+      channel: "movie",
+      type: "offer",
+      sdp: moviePeer.localDescription
+    });
+
+    console.log(
+      "MOVIE OFFER SENT"
+    );
+  }
+
+}
+
+
+// --------------------------------------------------
+// LOAD LOCAL MOVIE
+// --------------------------------------------------
+
+function loadMovieFile(file) {
+
+  if (!file) return;
+
+
+  // Remove previous remote stream.
+
+  movie.srcObject = null;
+
+
+  // Revoke old blob URL.
+
+  if (localMovieURL) {
+    URL.revokeObjectURL(localMovieURL);
+  }
+
+
+  localMovieURL =
+    URL.createObjectURL(file);
+
+
+  movie.src = localMovieURL;
+
+  movie.controls = true;
+
+  movie.muted = false;
+
+  movie.playsInline = true;
+
+
+  showMovieUI();
+
+
+  // Tell partner the filename.
+
+  socket.emit("movie-meta", {
+    name: file.name
+  });
+
+
+  // Wait until the video is ready
+  // before capturing it.
+
+  movie.onloadedmetadata = async () => {
+
+    console.log(
+      "Movie metadata loaded:",
+      file.name
+    );
+
+    // Host is the sender.
+
+    if (isHost) {
+
+      // Give Chrome a moment to create
+      // the media pipeline.
+
+      setTimeout(() => {
+
+        startMovieStreaming()
+          .catch(error => {
+            console.error(
+              "Movie streaming error:",
+              error
+            );
+          });
+
+      }, 300);
+    }
+  };
+
+
+  movie.oncanplay = () => {
+
+    if (isHost) {
+
+      startMovieStreaming()
+        .catch(error => {
+          console.error(error);
+        });
     }
 
   };
 
 
-  /*
-    ICE candidates.
-  */
+  movie.onerror = () => {
 
-  peer.onicecandidate =
+    toast(
+      "This video can't be played. Try MP4 H.264."
+    );
+
+  };
+
+
+  console.log(
+    "LOCAL MOVIE LOADED:",
+    file.name
+  );
+}
+
+
+// --------------------------------------------------
+// MOVIE INPUT
+// --------------------------------------------------
+
+if (movieInput) {
+
+  movieInput.addEventListener(
+    "change",
     event => {
 
-      if (!event.candidate) return;
+      const file =
+        event.target.files &&
+        event.target.files[0];
+
+      if (!file) return;
+
+      loadMovieFile(file);
+
+    }
+  );
+}
 
 
-      socket.emit(
-        "webrtc",
-        {
+// --------------------------------------------------
+// MOVIE PLAY / PAUSE
+// --------------------------------------------------
 
-          roomId,
+movie.addEventListener(
+  "play",
+  () => {
 
-          type: "ice",
+    if (!isHost) return;
 
-          candidate:
-            event.candidate
+    socket.emit("playback", {
+      action: "play",
+      time: movie.currentTime
+    });
 
-        }
-      );
-
-    };
-
-
-  /*
-    Connection state.
-  */
-
-  peer.onconnectionstatechange =
-    () => {
-
-      if (!peer) return;
+  }
+);
 
 
-      const state =
-        peer.connectionState;
+movie.addEventListener(
+  "pause",
+  () => {
 
+    if (!isHost) return;
+
+    socket.emit("playback", {
+      action: "pause",
+      time: movie.currentTime
+    });
+
+  }
+);
+
+
+movie.addEventListener(
+  "seeked",
+  () => {
+
+    if (!isHost) return;
+
+    socket.emit("playback", {
+      action: "seek",
+      time: movie.currentTime
+    });
+
+  }
+);
+
+
+// --------------------------------------------------
+// MOVIE TAP
+// --------------------------------------------------
+
+const movieTap =
+  document.getElementById("movieTap");
+
+if (movieTap) {
+
+  movieTap.addEventListener(
+    "click",
+    async () => {
+
+      if (!hasMovie) return;
+
+      if (movie.paused) {
+
+        await movie.play()
+          .catch(() => {});
+
+      } else {
+
+        movie.pause();
+
+      }
+
+    }
+  );
+}
+
+
+// --------------------------------------------------
+// SOCKET CONNECTION
+// --------------------------------------------------
+
+socket.on("connect", () => {
+
+  console.log(
+    "Connected to MovieDate server:",
+    socket.id
+  );
+
+});
+
+
+// --------------------------------------------------
+// ROOM JOINED
+// --------------------------------------------------
+
+socket.on(
+  "room-joined",
+  data => {
+
+    roomId = data.roomId;
+    isHost = data.isHost;
+
+    console.log(
+      "Joined room:",
+      roomId,
+      "Host:",
+      isHost
+    );
+
+  }
+);
+
+
+// --------------------------------------------------
+// ROOM STATE
+// --------------------------------------------------
+
+socket.on(
+  "room-state",
+  data => {
+
+    roomId =
+      data.roomId || roomId;
+
+    console.log(
+      "Room state:",
+      data
+    );
+
+    if (
+      data.movie &&
+      data.movie.name
+    ) {
 
       console.log(
-        "WEBRTC:",
-        state
-      );
-
-
-      if (
-        state === "connecting"
-      ) {
-
-        setPartnerStatus(
-          "◌ connecting…"
-        );
-
-        setSyncStatus(
-          "Connecting…"
-        );
-
-      }
-
-
-      if (
-        state === "connected"
-      ) {
-
-        setPartnerStatus(
-          "● connected",
-          true
-        );
-
-        setSyncStatus(
-          "Synced room"
-        );
-
-      }
-
-
-      if (
-        state === "disconnected"
-      ) {
-
-        setPartnerStatus(
-          "○ reconnecting…"
-        );
-
-      }
-
-
-      if (
-        state === "failed"
-      ) {
-
-        setPartnerStatus(
-          "○ connection failed"
-        );
-
-        setSyncStatus(
-          "Connection failed"
-        );
-
-      }
-
-    };
-
-
-  /*
-    Host creates offer.
-  */
-
-  if (offerer) {
-
-    try {
-
-      const offer =
-        await peer.createOffer();
-
-
-      await peer.setLocalDescription(
-        offer
-      );
-
-
-      socket.emit(
-        "webrtc",
-        {
-
-          roomId,
-
-          type: "offer",
-
-          sdp:
-            peer.localDescription
-
-        }
-      );
-
-
-      console.log(
-        "OFFER SENT"
-      );
-
-    } catch (error) {
-
-      console.error(
-        "OFFER ERROR:",
-        error
+        "Partner has movie:",
+        data.movie.name
       );
 
     }
 
   }
+);
 
 
-  return peer;
-}
-
-
-/* =========================================================
-   WEBRTC SIGNALING
-========================================================= */
+// --------------------------------------------------
+// PARTNER JOINED
+// --------------------------------------------------
 
 socket.on(
-  "webrtc",
-  async message => {
+  "peer-joined",
+  async data => {
+
+    partnerSocketId =
+      data.socketId;
 
     console.log(
-      "WEBRTC MESSAGE:",
-      message.type
+      "PARTNER JOINED:",
+      partnerSocketId
     );
 
 
+    // Camera connection.
+
+    if (isHost) {
+
+      await createPeer(true);
+
+    } else {
+
+      await createPeer(false);
+
+    }
+
+
+    // If host already selected a movie,
+    // immediately start movie streaming.
+
+    if (isHost && hasMovie) {
+
+      setTimeout(() => {
+
+        startMovieStreaming()
+          .catch(error => {
+            console.error(
+              "Movie stream start error:",
+              error
+            );
+          });
+
+      }, 500);
+    }
+
+  }
+);
+
+
+// --------------------------------------------------
+// PEER READY
+// --------------------------------------------------
+
+socket.on(
+  "peer-ready",
+  async data => {
+
+    partnerSocketId =
+      data.socketId;
+
+    console.log(
+      "PEER READY:",
+      partnerSocketId
+    );
+
+
+    if (!peer) {
+
+      await createPeer(
+        isHost
+      );
+
+    }
+
+
+    // Host sends movie if already loaded.
+
+    if (isHost && hasMovie) {
+
+      setTimeout(() => {
+
+        startMovieStreaming()
+          .catch(error => {
+            console.error(error);
+          });
+
+      }, 500);
+    }
+
+  }
+);
+
+
+// --------------------------------------------------
+// WEBRTC SIGNALING
+// --------------------------------------------------
+
+socket.on(
+  "webrtc",
+  async data => {
+
+    // -------------------------------
+    // MOVIE SIGNALING
+    // -------------------------------
+
+    if (data.channel === "movie") {
+
+      try {
+
+        if (
+          data.type === "offer"
+        ) {
+
+          console.log(
+            "MOVIE OFFER RECEIVED"
+          );
+
+
+          if (!moviePeer) {
+            createMoviePeer();
+          }
+
+
+          await moviePeer.setRemoteDescription(
+            new RTCSessionDescription(
+              data.sdp
+            )
+          );
+
+
+          const answer =
+            await moviePeer.createAnswer();
+
+
+          await moviePeer.setLocalDescription(
+            answer
+          );
+
+
+          socket.emit("webrtc", {
+            channel: "movie",
+            type: "answer",
+            sdp: moviePeer.localDescription
+          });
+
+
+          console.log(
+            "MOVIE ANSWER SENT"
+          );
+
+          return;
+        }
+
+
+        if (
+          data.type === "answer"
+        ) {
+
+          console.log(
+            "MOVIE ANSWER RECEIVED"
+          );
+
+
+          if (!moviePeer) return;
+
+
+          await moviePeer.setRemoteDescription(
+            new RTCSessionDescription(
+              data.sdp
+            )
+          );
+
+
+          return;
+        }
+
+
+        if (
+          data.type === "ice"
+        ) {
+
+          if (!moviePeer) return;
+
+
+          try {
+
+            await moviePeer.addIceCandidate(
+              new RTCIceCandidate(
+                data.candidate
+              )
+            );
+
+          } catch (error) {
+
+            console.warn(
+              "Movie ICE error:",
+              error
+            );
+
+          }
+
+          return;
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Movie WebRTC error:",
+          error
+        );
+
+      }
+
+      return;
+    }
+
+
+    // -------------------------------
+    // CAMERA SIGNALING
+    // -------------------------------
+
     try {
 
-      /*
-        OFFER
-      */
-
       if (
-        message.type === "offer"
+        data.type === "offer"
       ) {
 
         if (!peer) {
-
           await createPeer(false);
-
         }
 
 
         await peer.setRemoteDescription(
           new RTCSessionDescription(
-            message.sdp
+            data.sdp
           )
         );
-
-
-        for (
-          const candidate
-          of pendingIceCandidates
-        ) {
-
-          try {
-
-            await peer.addIceCandidate(
-              candidate
-            );
-
-          } catch {}
-
-        }
-
-
-        pendingIceCandidates = [];
 
 
         const answer =
@@ -1052,31 +973,19 @@ socket.on(
         );
 
 
-        socket.emit(
-          "webrtc",
-          {
-
-            roomId,
-
-            type: "answer",
-
-            sdp:
-              peer.localDescription
-
-          }
-        );
+        socket.emit("webrtc", {
+          channel: "camera",
+          type: "answer",
+          sdp: peer.localDescription
+        });
 
 
         return;
       }
 
 
-      /*
-        ANSWER
-      */
-
       if (
-        message.type === "answer"
+        data.type === "answer"
       ) {
 
         if (!peer) return;
@@ -1084,72 +993,35 @@ socket.on(
 
         await peer.setRemoteDescription(
           new RTCSessionDescription(
-            message.sdp
+            data.sdp
           )
         );
-
-
-        for (
-          const candidate
-          of pendingIceCandidates
-        ) {
-
-          try {
-
-            await peer.addIceCandidate(
-              candidate
-            );
-
-          } catch {}
-
-        }
-
-
-        pendingIceCandidates = [];
 
 
         return;
       }
 
 
-      /*
-        ICE
-      */
-
       if (
-        message.type === "ice"
+        data.type === "ice"
       ) {
 
-        const candidate =
-          new RTCIceCandidate(
-            message.candidate
+        if (!peer) return;
+
+
+        try {
+
+          await peer.addIceCandidate(
+            new RTCIceCandidate(
+              data.candidate
+            )
           );
 
+        } catch (error) {
 
-        if (
-          peer &&
-          peer.remoteDescription
-        ) {
-
-          try {
-
-            await peer.addIceCandidate(
-              candidate
-            );
-
-          } catch (error) {
-
-            console.log(
-              "ICE ERROR:",
-              error
-            );
-
-          }
-
-        } else {
-
-          pendingIceCandidates.push(
-            candidate
+          console.warn(
+            "Camera ICE error:",
+            error
           );
 
         }
@@ -1159,7 +1031,7 @@ socket.on(
     } catch (error) {
 
       console.error(
-        "WEBRTC SIGNAL ERROR:",
+        "Camera WebRTC error:",
         error
       );
 
@@ -1169,498 +1041,16 @@ socket.on(
 );
 
 
-/* =========================================================
-   MOVIE
-========================================================= */
-
-function resetMovieUI() {
-
-  hasMovie = false;
-
-
-  $("videoWrap")
-    .classList.add("no-movie");
-
-
-  $("emptyState")
-    .classList.remove("hidden");
-
-
-  $("movieTap")
-    .classList.remove("show");
-
-
-  $("movieControls")
-    .classList.remove("show");
-
-
-  $("syncBadge").textContent =
-    "Ready";
-
-
-  $("currentTime").textContent =
-    "00:00";
-
-
-  $("duration").textContent =
-    "00:00";
-
-
-  $("seek").value = 0;
-
-}
-
-
-function loadMovie(file) {
-
-  if (!file) return;
-
-
-  /*
-    Check that it is actually a video.
-  */
-
-  if (
-    !file.type.startsWith("video/")
-  ) {
-
-    toast(
-      "Please select a video file."
-    );
-
-    return;
-
-  }
-
-
-  /*
-    Release previous object URL.
-  */
-
-  if (movieObjectURL) {
-
-    URL.revokeObjectURL(
-      movieObjectURL
-    );
-
-  }
-
-
-  movieObjectURL =
-    URL.createObjectURL(file);
-
-
-  hasMovie = true;
-
-
-  $("videoWrap")
-    .classList.remove("no-movie");
-
-
-  $("emptyState")
-    .classList.add("hidden");
-
-
-  $("movieTap")
-    .classList.remove("show");
-
-
-  $("syncBadge").textContent =
-    "Loading…";
-
-
-  movie.src =
-    movieObjectURL;
-
-
-  movie.load();
-
-
-  console.log(
-    "MOVIE SELECTED:",
-    file.name
-  );
-
-
-  /*
-    Send filename only for now.
-  */
-
-  if (roomId) {
-
-    socket.emit(
-      "movie-meta",
-      {
-
-        roomId,
-
-        name:
-          file.name
-
-      }
-    );
-
-  }
-
-}
-
-
-movieFile.addEventListener(
-  "change",
-  event => {
-
-    const file =
-      event.target.files?.[0];
-
-
-    if (!file) return;
-
-
-    loadMovie(file);
-
-
-    /*
-      Reset value so selecting
-      the same file again works.
-    */
-
-    movieFile.value = "";
-
-  }
-);
-
-
-/*
-  Movie loaded successfully.
-*/
-
-movie.addEventListener(
-  "loadedmetadata",
-  () => {
-
-    $("duration").textContent =
-      formatTime(movie.duration);
-
-
-    $("syncBadge").textContent =
-      "Ready";
-
-
-    $("movieTap")
-      .classList.add("show");
-
-
-    toast(
-      "Movie ready"
-    );
-
-  }
-);
-
-
-/*
-  Movie can play.
-*/
-
-movie.addEventListener(
-  "canplay",
-  () => {
-
-    $("syncBadge").textContent =
-      "Ready";
-
-  }
-);
-
-
-/*
-  Movie error.
-*/
-
-movie.addEventListener(
-  "error",
-  () => {
-
-    console.error(
-      "VIDEO ERROR:",
-      movie.error
-    );
-
-
-    $("syncBadge").textContent =
-      "Unsupported";
-
-
-    toast(
-      "This video can't be played. Try MP4 H.264."
-    );
-
-  }
-);
-
-
-/* =========================================================
-   MOVIE PLAYBACK
-========================================================= */
-
-async function togglePlay(
-  send = true
-) {
-
-  if (!hasMovie) {
-
-    movieFile.click();
-
-    return;
-
-  }
-
-
-  if (movie.paused) {
-
-    try {
-
-      await movie.play();
-
-    } catch (error) {
-
-      console.error(
-        "PLAY ERROR:",
-        error
-      );
-
-      toast(
-        "Tap play again."
-      );
-
-      return;
-
-    }
-
-  } else {
-
-    movie.pause();
-
-  }
-
-
-  if (
-    send &&
-    roomId &&
-    !ignorePlaybackEvent
-  ) {
-
-    socket.emit(
-      "playback",
-      {
-
-        roomId,
-
-        action:
-          movie.paused
-            ? "pause"
-            : "play",
-
-        time:
-          movie.currentTime
-
-      }
-    );
-
-  }
-
-}
-
-
-movie.addEventListener(
-  "play",
-  () => {
-
-    $("movieTap")
-      .classList.remove("show");
-
-  }
-);
-
-
-movie.addEventListener(
-  "pause",
-  () => {
-
-    if (hasMovie) {
-
-      $("movieTap")
-        .classList.add("show");
-
-    }
-
-  }
-);
-
-
-movie.addEventListener(
-  "timeupdate",
-  () => {
-
-    $("currentTime").textContent =
-      formatTime(
-        movie.currentTime
-      );
-
-
-    if (
-      movie.duration &&
-      Number.isFinite(movie.duration)
-    ) {
-
-      $("seek").value =
-        (
-          movie.currentTime /
-          movie.duration
-        ) * 100;
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   SEEK
-========================================================= */
-
-$("seek").addEventListener(
-  "input",
-  event => {
-
-    if (!hasMovie) return;
-
-
-    if (movie.duration) {
-
-      movie.currentTime =
-        (
-          Number(event.target.value) /
-          100
-        ) * movie.duration;
-
-    }
-
-  }
-);
-
-
-$("seek").addEventListener(
-  "change",
-  () => {
-
-    if (!hasMovie) return;
-
-
-    if (
-      roomId &&
-      !ignorePlaybackEvent
-    ) {
-
-      socket.emit(
-        "playback",
-        {
-
-          roomId,
-
-          action: "seek",
-
-          time:
-            movie.currentTime
-
-        }
-      );
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   REMOTE PLAYBACK
-========================================================= */
-
-socket.on(
-  "playback",
-  async data => {
-
-    if (!hasMovie) return;
-
-
-    ignorePlaybackEvent = true;
-
-
-    try {
-
-      if (
-        Number.isFinite(
-          Number(data.time)
-        )
-      ) {
-
-        if (
-          Math.abs(
-            movie.currentTime -
-            Number(data.time)
-          ) > 0.5
-        ) {
-
-          movie.currentTime =
-            Number(data.time);
-
-        }
-
-      }
-
-
-      if (
-        data.action === "play"
-      ) {
-
-        await movie.play()
-          .catch(() => {});
-
-      }
-
-
-      if (
-        data.action === "pause"
-      ) {
-
-        movie.pause();
-
-      }
-
-    } finally {
-
-      setTimeout(() => {
-
-        ignorePlaybackEvent = false;
-
-      }, 50);
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   MOVIE META
-========================================================= */
+// --------------------------------------------------
+// MOVIE METADATA
+// --------------------------------------------------
 
 socket.on(
   "movie-meta",
   data => {
 
     console.log(
-      "PARTNER MOVIE:",
+      "Partner movie:",
       data.name
     );
 
@@ -1668,94 +1058,215 @@ socket.on(
 );
 
 
-/* =========================================================
-   CHAT
-========================================================= */
+// --------------------------------------------------
+// PARTNER LEFT
+// --------------------------------------------------
 
-function addMessage(
-  text,
-  me = false
-) {
+socket.on(
+  "peer-left",
+  () => {
 
-  const empty =
-    $("messageEmpty");
+    partnerSocketId = null;
 
 
-  if (empty) {
-    empty.remove();
+    if (moviePeer) {
+
+      try {
+        moviePeer.close();
+      } catch {}
+
+    }
+
+    moviePeer = null;
+
+    movieVideoSender = null;
+    movieAudioSender = null;
+    movieCaptureStream = null;
+
+
+    console.log(
+      "Partner left."
+    );
+
   }
+);
 
 
-  const el =
-    document.createElement("div");
+// --------------------------------------------------
+// FILE BUTTON
+// --------------------------------------------------
 
+const chooseMovie =
+  document.getElementById("chooseMovie");
 
-  el.className =
-    "bubble" +
-    (me ? " me" : "");
+if (chooseMovie && movieInput) {
 
-
-  el.textContent =
-    text;
-
-
-  $("messages")
-    .appendChild(el);
-
-
-  $("messages").scrollTop =
-    $("messages").scrollHeight;
+  chooseMovie.addEventListener(
+    "click",
+    () => {
+      movieInput.click();
+    }
+  );
 
 }
 
 
-$("chatForm").addEventListener(
-  "submit",
-  event => {
+// --------------------------------------------------
+// EXIT ROOM
+// --------------------------------------------------
 
-    event.preventDefault();
+const exitRoom =
+  document.getElementById("exitRoom");
 
+if (exitRoom) {
 
-    const input =
-      $("chatInput");
+  exitRoom.addEventListener(
+    "click",
+    () => {
 
-
-    const text =
-      input.value.trim();
-
-
-    if (!text) return;
-
-
-    addMessage(
-      text,
-      true
-    );
+      socket.emit(
+        "leave-room"
+      );
 
 
-    socket.emit(
-      "chat",
-      {
+      if (peer) {
 
-        roomId,
-
-        text
+        try {
+          peer.close();
+        } catch {}
 
       }
-    );
 
 
-    input.value = "";
+      if (moviePeer) {
 
-  }
-);
+        try {
+          moviePeer.close();
+        } catch {}
+
+      }
+
+
+      peer = null;
+      moviePeer = null;
+
+      partnerSocketId = null;
+
+      window.location.reload();
+
+    }
+  );
+
+}
+
+
+// --------------------------------------------------
+// CHAT
+// --------------------------------------------------
+
+const chatInput =
+  document.getElementById("chatInput");
+
+const sendChat =
+  document.getElementById("sendChat");
+
+
+function sendChatMessage() {
+
+  if (!chatInput) return;
+
+  const text =
+    chatInput.value.trim();
+
+  if (!text) return;
+
+
+  socket.emit(
+    "chat",
+    { text }
+  );
+
+
+  addChatMessage(
+    text,
+    true
+  );
+
+
+  chatInput.value = "";
+
+}
+
+
+if (sendChat) {
+
+  sendChat.addEventListener(
+    "click",
+    sendChatMessage
+  );
+
+}
+
+
+if (chatInput) {
+
+  chatInput.addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key === "Enter"
+      ) {
+
+        sendChatMessage();
+
+      }
+
+    }
+  );
+
+}
+
+
+function addChatMessage(
+  text,
+  mine = false
+) {
+
+  const chat =
+    document.getElementById("chat");
+
+  if (!chat) return;
+
+
+  const message =
+    document.createElement("div");
+
+  message.className =
+    mine
+      ? "chat-message mine"
+      : "chat-message";
+
+
+  message.textContent = text;
+
+
+  chat.appendChild(
+    message
+  );
+
+
+  chat.scrollTop =
+    chat.scrollHeight;
+
+}
 
 
 socket.on(
   "chat",
   data => {
 
-    addMessage(
+    addChatMessage(
       data.text,
       false
     );
@@ -1764,525 +1275,146 @@ socket.on(
 );
 
 
-/* =========================================================
-   REACTIONS
-========================================================= */
+// --------------------------------------------------
+// REACTIONS
+// --------------------------------------------------
 
-function reactionEmoji(
-  emoji,
-  side = "remote"
-) {
+document
+  .querySelectorAll(
+    "[data-reaction]"
+  )
+  .forEach(button => {
 
-  const el =
-    document.createElement("div");
+    button.addEventListener(
+      "click",
+      () => {
 
+        const emoji =
+          button.dataset.reaction;
 
-  el.className =
-    "float-reaction " +
-    side;
+        socket.emit(
+          "reaction",
+          { emoji }
+        );
 
-
-  el.textContent =
-    emoji;
-
-
-  /*
-    Partner reactions appear
-    around partner camera.
-  */
-
-  if (side === "remote") {
-
-    el.style.right =
-      "12vw";
-
-    el.style.bottom =
-      "28vh";
-
-  } else {
-
-    el.style.left =
-      "20vw";
-
-    el.style.bottom =
-      "28vh";
-
-  }
-
-
-  document.body.appendChild(
-    el
-  );
-
-
-  setTimeout(
-    () => el.remove(),
-    1500
-  );
-
-}
-
-
-$("reactionRow").addEventListener(
-  "click",
-  event => {
-
-    const button =
-      event.target.closest("button");
-
-
-    if (!button) return;
-
-
-    const emoji =
-      button.dataset.reaction;
-
-
-    reactionEmoji(
-      emoji,
-      "local"
-    );
-
-
-    socket.emit(
-      "reaction",
-      {
-
-        roomId,
-
-        emoji
+        showReaction(
+          emoji
+        );
 
       }
     );
 
-  }
-);
+  });
 
 
 socket.on(
   "reaction",
   data => {
 
-    reactionEmoji(
-      data.emoji,
-      "remote"
+    showReaction(
+      data.emoji
     );
 
   }
 );
 
 
-/* =========================================================
-   MIC
-========================================================= */
+function showReaction(
+  emoji
+) {
 
-$("micBtn").addEventListener(
-  "click",
-  () => {
+  const el =
+    document.createElement("div");
 
-    const track =
-      localStream?.getAudioTracks()[0];
+  el.className =
+    "floating-reaction";
 
+  el.textContent =
+    emoji;
 
-    if (!track) {
-
-      toast(
-        "Microphone not available."
-      );
-
-      return;
-
-    }
+  document.body.appendChild(
+    el
+  );
 
 
-    track.enabled =
-      !track.enabled;
+  setTimeout(() => {
 
+    el.remove();
 
-    $("micBtn")
-      .classList.toggle(
-        "off",
-        !track.enabled
-      );
-
-
-    toast(
-      track.enabled
-        ? "Microphone on"
-        : "Microphone off"
-    );
-
-  }
-);
-
-
-/* =========================================================
-   CAMERA
-========================================================= */
-
-$("cameraBtn").addEventListener(
-  "click",
-  () => {
-
-    const track =
-      localStream?.getVideoTracks()[0];
-
-
-    if (!track) {
-
-      toast(
-        "Camera not available."
-      );
-
-      return;
-
-    }
-
-
-    track.enabled =
-      !track.enabled;
-
-
-    $("localPlaceholder")
-      .style.display =
-      track.enabled
-        ? "none"
-        : "grid";
-
-
-    $("cameraBtn")
-      .classList.toggle(
-        "off",
-        !track.enabled
-      );
-
-
-    $("youStatus").textContent =
-      track.enabled
-        ? "● live"
-        : "○ camera off";
-
-  }
-);
-
-
-/* =========================================================
-   SHARE
-========================================================= */
-
-async function shareRoom() {
-
-  if (!roomId) {
-
-    toast(
-      "Create a room first."
-    );
-
-    return;
-
-  }
-
-
-  const url =
-    `${location.origin}${location.pathname}?room=${encodeURIComponent(roomId)}`;
-
-
-  try {
-
-    if (navigator.share) {
-
-      await navigator.share({
-
-        title: "MovieDate",
-
-        text:
-          "Join my MovieDate room ❤️",
-
-        url
-
-      });
-
-      return;
-
-    }
-
-  } catch {}
-
-
-  try {
-
-    await navigator.clipboard
-      .writeText(url);
-
-
-    toast(
-      "Room link copied"
-    );
-
-  } catch {
-
-    prompt(
-      "Copy this room link:",
-      url
-    );
-
-  }
+  }, 1800);
 
 }
 
 
-/* =========================================================
-   BUTTONS
-========================================================= */
+// --------------------------------------------------
+// CAMERA / MIC CONTROLS
+// --------------------------------------------------
 
-$("shareBtn").onclick =
-  shareRoom;
+const micButton =
+  document.getElementById("micButton");
 
+const cameraButton =
+  document.getElementById("cameraButton");
 
-$("roomPill").onclick =
-  shareRoom;
 
+if (micButton) {
 
-$("playBtn").onclick =
-  () => togglePlay(true);
+  micButton.addEventListener(
+    "click",
+    () => {
 
+      if (!window.localStream)
+        return;
 
-$("movieTap").onclick =
-  () => togglePlay(true);
 
+      const tracks =
+        window.localStream
+          .getAudioTracks();
 
-/*
-  Clicking the movie itself
-  only toggles if movie exists.
-*/
 
-movie.addEventListener(
-  "click",
-  () => {
-
-    if (hasMovie) {
-
-      togglePlay(true);
-
-    }
-
-  }
-);
-
-
-$("chooseMovieBtn").onclick =
-  () => movieFile.click();
-
-
-$("changeMovie").onclick =
-  () => movieFile.click();
-
-
-$("fullscreenBtn").onclick =
-  async () => {
-
-    try {
-
-      if (
-        document.fullscreenElement
-      ) {
-
-        await document.exitFullscreen();
-
-      } else {
-
-        await $("videoWrap")
-          .requestFullscreen();
-
-      }
-
-    } catch {}
-
-  };
-
-
-$("muteBtn").onclick =
-  () => {
-
-    movie.muted =
-      !movie.muted;
-
-
-    $("muteBtn").classList.toggle(
-      "off",
-      movie.muted
-    );
-
-  };
-
-
-/* =========================================================
-   ROOM BUTTONS
-========================================================= */
-
-$("createRoomBtn").onclick =
-  createRoom;
-
-
-$("joinPromptBtn").onclick =
-  () => {
-
-    $("joinSheet").hidden =
-      false;
-
-    setTimeout(
-      () => $("roomCodeInput").focus(),
-      50
-    );
-
-  };
-
-
-$("closeJoinBtn").onclick =
-  () => {
-
-    $("joinSheet").hidden =
-      true;
-
-  };
-
-
-$("joinRoomBtn").onclick =
-  async () => {
-
-    const code =
-      $("roomCodeInput")
-        .value
-        .trim()
-        .toUpperCase();
-
-
-    if (!code) {
-
-      toast(
-        "Enter a room code."
-      );
-
-      return;
-
-    }
-
-
-    roomId = code;
-
-    isHost = false;
-
-    joinedOnServer = false;
-
-    joinRequested = false;
-
-
-    $("joinSheet").hidden =
-      true;
-
-
-    updateRoomURL();
-
-    updateRoomUI();
-
-
-    await joinExistingRoom();
-
-  };
-
-
-$("roomCodeInput").addEventListener(
-  "keydown",
-  event => {
-
-    if (
-      event.key === "Enter"
-    ) {
-
-      $("joinRoomBtn").click();
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   EXIT
-========================================================= */
-
-$("exitBtn").onclick =
-  () => {
-
-    socket.emit(
-      "leave-room"
-    );
-
-
-    if (peer) {
-
-      peer.close();
-
-      peer = null;
-
-    }
-
-
-    if (localStream) {
-
-      localStream
-        .getTracks()
-        .forEach(track =>
-          track.stop()
-        );
-
-      localStream = null;
-
-    }
-
-
-    if (movieObjectURL) {
-
-      URL.revokeObjectURL(
-        movieObjectURL
+      tracks.forEach(
+        track => {
+          track.enabled =
+            !track.enabled;
+        }
       );
 
     }
-
-
-    location.href =
-      location.pathname;
-
-  };
-
-
-/* =========================================================
-   INITIAL STATE
-========================================================= */
-
-resetMovieUI();
-
-updateRoomUI();
-
-
-if (roomId) {
-
-  setSyncStatus(
-    "Connecting…"
-  );
-
-  setPartnerStatus(
-    "○ joining…"
-  );
-
-} else {
-
-  setSyncStatus(
-    "Ready"
-  );
-
-  setPartnerStatus(
-    "○ waiting"
   );
 
 }
+
+
+if (cameraButton) {
+
+  cameraButton.addEventListener(
+    "click",
+    () => {
+
+      if (!window.localStream)
+        return;
+
+
+      const tracks =
+        window.localStream
+          .getVideoTracks();
+
+
+      tracks.forEach(
+        track => {
+          track.enabled =
+            !track.enabled;
+        }
+      );
+
+    }
+  );
+
+}
+
+
+// --------------------------------------------------
+// INITIAL CAMERA
+// --------------------------------------------------
+
+startCamera();
