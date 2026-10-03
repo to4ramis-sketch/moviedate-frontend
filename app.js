@@ -5,109 +5,114 @@ const socket = io(BACKEND_URL, {
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 700,
-  reconnectionDelayMax: 5000,
+  reconnectionDelayMax: 5000
 });
 
 const params = new URLSearchParams(location.search);
+
 let roomId = params.get("room")?.trim().toUpperCase() || null;
 let isHost = false;
 let joinedOnServer = false;
-let joinInProgress = false;
 let localStream = null;
 let peer = null;
 let partnerSocketId = null;
 let pendingIce = [];
-let movieCaptureStream = null;
-let movieVideoSender = null;
-let movieAudioSender = null;
-let movieStreamId = null;
-let remoteMovieStreamId = null;
-let remoteMovieStream = null;
-let makingOffer = false;
-let queuedOffer = false;
-let hostPlaybackState = "idle";
-let heartbeat = null;
+let ignorePlayback = false;
+let movieObjectUrl = null;
 let controlsTimer = null;
-let reconnectTimer = null;
 
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
+
 const movie = $("movie");
 const movieFile = $("movieFile");
 const localVideo = $("localVideo");
 const remoteVideo = $("remoteVideo");
 
+
+/* ---------------- BASIC UI ---------------- */
+
 function toast(message) {
   const el = $("toast");
   if (!el) return;
+
   el.textContent = message;
   el.classList.add("show");
+
   clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+
+  window.__toastTimer = setTimeout(() => {
+    el.classList.remove("show");
+  }, 1800);
 }
+
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return "00:00";
+
   seconds = Math.max(0, Math.floor(seconds));
+
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
+
 
 function randomRoom() {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
+
 function setConnected(connected) {
   $("roomStatus")?.classList.toggle("on", connected);
-  if ($("syncBadge")) $("syncBadge").textContent = connected ? "online" : "offline";
+
+  if ($("syncBadge")) {
+    $("syncBadge").textContent = connected ? "online" : "offline";
+  }
 }
 
-function setPartnerStatus(value) {
-  if ($("partnerStatus")) $("partnerStatus").textContent = value;
+
+function setPartnerStatus(text) {
+  if ($("partnerStatus")) {
+    $("partnerStatus").textContent = text;
+  }
 }
 
-function updateHostUI() {
-  const changeMovie = $("changeMovie");
-  const seek = $("seek");
-  if (changeMovie) changeMovie.style.display = isHost ? "" : "none";
-  if (seek) seek.style.display = isHost ? "" : "none";
-}
 
 function showGate(show) {
   $("roomGate")?.classList.toggle("show", show);
 }
 
+
+function updateHostUI() {
+  const changeMovie = $("changeMovie");
+  const seek = $("seek");
+
+  if (changeMovie) {
+    changeMovie.style.display = isHost ? "" : "none";
+  }
+
+  if (seek) {
+    seek.style.display = isHost ? "" : "none";
+  }
+}
+
+
 function showMovieControls() {
   $("videoWrap")?.classList.add("controls-visible");
+
   clearTimeout(controlsTimer);
+
   controlsTimer = setTimeout(() => {
-    if (!movie?.paused) $("videoWrap")?.classList.remove("controls-visible");
+    if (!movie?.paused) {
+      $("videoWrap")?.classList.remove("controls-visible");
+    }
   }, 2200);
 }
 
-function addMessage(text, mine = false) {
-  const list = $("messages");
-  if (!list) return;
-  $("messageEmpty")?.remove();
-  const item = document.createElement("div");
-  item.className = `bubble${mine ? " me" : ""}`;
-  item.textContent = text;
-  list.appendChild(item);
-  list.scrollTop = list.scrollHeight;
-}
 
-function showReaction(emoji) {
-  const el = document.createElement("div");
-  el.className = "float-reaction";
-  el.textContent = emoji;
-  el.style.left = `${25 + Math.random() * 60}vw`;
-  el.style.top = `${55 + Math.random() * 25}vh`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1500);
-}
-
-/* -------------------- room -------------------- */
+/* ---------------- CAMERA ---------------- */
 
 async function startCamera() {
   if (localStream) return true;
+
   if (!navigator.mediaDevices?.getUserMedia) {
     toast("Camera unavailable");
     return false;
@@ -117,734 +122,1247 @@ async function startCamera() {
     localStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
-        width: { ideal: 640, max: 640 },
-        height: { ideal: 360, max: 360 },
-        frameRate: { ideal: 15, max: 20 },
+        width: { ideal: 640 },
+        height: { ideal: 360 },
+        frameRate: { ideal: 15, max: 20 }
       },
-      audio: true,
+      audio: true
     });
 
     localVideo.srcObject = localStream;
+
     localVideo.muted = true;
     localVideo.autoplay = true;
     localVideo.playsInline = true;
+
     localVideo.play().catch(() => {});
+
     $("localPlaceholder")?.style.setProperty("display", "none");
-    if ($("youStatus")) $("youStatus").textContent = "●";
+
+    if ($("youStatus")) {
+      $("youStatus").textContent = "●";
+    }
+
     return true;
+
   } catch (error) {
-    console.error("getUserMedia:", error);
-    if ($("youStatus")) $("youStatus").textContent = "○";
+
+    console.error("Camera:", error);
+
+    if ($("youStatus")) {
+      $("youStatus").textContent = "○";
+    }
+
     toast("Camera permission needed");
+
     return false;
   }
 }
 
+
+/* ---------------- ROOM ---------------- */
+
 async function joinRoom(id) {
+
   const normalized = String(id || "").trim().toUpperCase();
-  if (!normalized || joinedOnServer || joinInProgress) return;
+
+  if (!normalized) return;
 
   roomId = normalized;
-  history.replaceState({}, "", `?room=${encodeURIComponent(roomId)}`);
+
+  history.replaceState(
+    {},
+    "",
+    `?room=${encodeURIComponent(roomId)}`
+  );
+
   $("roomCode").textContent = roomId;
+
   showGate(false);
+
   updateHostUI();
 
-  joinInProgress = true;
   await startCamera();
 
   if (socket.connected) {
-    socket.emit("join-room", { roomId });
+
+    socket.emit("join-room", {
+      roomId
+    });
+
   }
 }
+
 
 async function createRoom() {
+
+  const id = randomRoom();
+
+  roomId = id;
   isHost = true;
+
   joinedOnServer = false;
-  joinInProgress = false;
-  await joinRoom(randomRoom());
-  toast("Room ready");
+
+  await joinRoom(id);
+
+  toast("Room created");
+
 }
 
-function leaveRoom() {
-  stopHeartbeat();
-  clearTimeout(reconnectTimer);
 
-  if (roomId && socket.connected) socket.emit("leave-room", { roomId });
+function leaveRoom() {
+
+  if (roomId && socket.connected) {
+
+    socket.emit("leave-room", {
+      roomId
+    });
+
+  }
 
   peer?.close();
-  peer = null;
-  partnerSocketId = null;
-  pendingIce = [];
-  makingOffer = false;
-  queuedOffer = false;
 
-  localStream?.getTracks().forEach((track) => track.stop());
+  peer = null;
+
+  partnerSocketId = null;
+
+  pendingIce = [];
+
+  localStream?.getTracks().forEach(track => {
+    track.stop();
+  });
+
   localStream = null;
 
-  movieCaptureStream?.getTracks().forEach((track) => track.stop());
-  movieCaptureStream = null;
-  movieVideoSender = null;
-  movieAudioSender = null;
-  movieStreamId = null;
-  remoteMovieStreamId = null;
-  remoteMovieStream = null;
+  if (localVideo) {
+    localVideo.srcObject = null;
+  }
 
-  if (localVideo) localVideo.srcObject = null;
-  if (remoteVideo) remoteVideo.srcObject = null;
+  if (remoteVideo) {
+    remoteVideo.srcObject = null;
+  }
+
   if (movie) {
+
     movie.pause();
-    movie.srcObject = null;
-    movie.removeAttribute("src");
+
+    movie.src = "";
+
     movie.load();
+
+  }
+
+  if (movieObjectUrl) {
+
+    URL.revokeObjectURL(movieObjectUrl);
+
+    movieObjectUrl = null;
+
   }
 
   joinedOnServer = false;
-  joinInProgress = false;
-  roomId = null;
-  isHost = false;
-  hostPlaybackState = "idle";
 
-  history.replaceState({}, "", location.pathname);
+  roomId = null;
+
+  isHost = false;
+
+  history.replaceState(
+    {},
+    "",
+    location.pathname
+  );
+
   $("roomCode").textContent = "—";
+
   setPartnerStatus("○");
-  $("localPlaceholder")?.style.setProperty("display", "grid");
-  $("remotePlaceholder")?.style.setProperty("display", "grid");
+
+  $("localPlaceholder")?.style.setProperty(
+    "display",
+    "grid"
+  );
+
+  $("remotePlaceholder")?.style.setProperty(
+    "display",
+    "grid"
+  );
+
   updateHostUI();
+
   showGate(true);
+
 }
 
-/* -------------------- socket -------------------- */
 
-socket.on("connect", async () => {
-  console.log("Socket connected", socket.id);
+/* ---------------- SOCKET ---------------- */
+
+socket.on("connect", () => {
+
+  console.log("Connected:", socket.id);
+
   setConnected(true);
-  if (roomId && !joinedOnServer && !joinInProgress) await joinRoom(roomId);
+
+  if (roomId && !joinedOnServer) {
+
+    socket.emit("join-room", {
+      roomId
+    });
+
+  }
+
 });
+
 
 socket.on("disconnect", () => {
-  console.log("Socket disconnected");
+
+  console.log("Disconnected");
+
   setConnected(false);
+
   joinedOnServer = false;
-  joinInProgress = false;
+
   setPartnerStatus("○");
+
 });
 
-socket.on("connect_error", (error) => {
-  console.warn("Socket error", error.message);
-  setConnected(false);
-});
 
-socket.on("room-full", () => {
-  joinedOnServer = false;
-  joinInProgress = false;
-  toast("Room is full");
-});
+socket.on("room-state", data => {
 
-socket.on("room-error", ({ message }) => {
-  joinedOnServer = false;
-  joinInProgress = false;
-  toast(message || "Room error");
-});
+  console.log("ROOM STATE:", data);
 
-socket.on("room-state", async (data) => {
   if (!data) return;
 
   joinedOnServer = true;
-  joinInProgress = false;
-  roomId = data.roomId || roomId;
-  isHost = data.hostSocketId === socket.id;
-  hostPlaybackState = data.playback?.state || "idle";
+
+  if (data.hostSocketId === socket.id) {
+    isHost = true;
+  }
 
   $("roomCode").textContent = roomId || "—";
+
   updateHostUI();
+
   showGate(false);
-  setPartnerStatus(data.participants > 1 ? "●" : "○");
 
-  if (data.movie?.name) setMovieMeta(data.movie);
-});
+  if (data.participants > 1) {
 
-socket.on("peer-available", async ({ socketId, hostSocketId }) => {
-  partnerSocketId = socketId;
-  setPartnerStatus("◌");
+    setPartnerStatus("●");
 
-  if (socket.id === hostSocketId) {
-    isHost = true;
-    await ensurePeer();
-    await sendOffer();
+  } else {
+
+    setPartnerStatus("○");
+
   }
+
+  if (data.movie?.name) {
+
+    setMovieMeta(data.movie);
+
+  }
+
 });
+
 
 socket.on("peer-joined", async ({ socketId, hostSocketId }) => {
+
+  console.log("Peer joined:", socketId);
+
   partnerSocketId = socketId;
+
   setPartnerStatus("◌");
 
+  /*
+    Host creates the WebRTC offer.
+  */
+
   if (socket.id === hostSocketId) {
-    isHost = true;
-    await ensurePeer();
-    await sendOffer();
+
+    await createPeer(true);
+
   }
+
 });
+
 
 socket.on("peer-left", () => {
+
   partnerSocketId = null;
+
   peer?.close();
+
   peer = null;
+
   pendingIce = [];
-  makingOffer = false;
-  queuedOffer = false;
-  remoteVideo.srcObject = null;
-  remoteMovieStream = null;
-  remoteMovieStreamId = null;
+
+  if (remoteVideo) {
+    remoteVideo.srcObject = null;
+  }
+
   setPartnerStatus("○");
-  $("remotePlaceholder")?.style.setProperty("display", "grid");
+
+  $("remotePlaceholder")?.style.setProperty(
+    "display",
+    "grid"
+  );
+
 });
 
-/* -------------------- WebRTC -------------------- */
 
-async function ensurePeer() {
-  if (peer) return peer;
+/* ---------------- WEBRTC CAMERA ---------------- */
+
+async function createPeer(offerer) {
+
+  if (peer) {
+    peer.close();
+  }
 
   peer = new RTCPeerConnection({
+
     iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun.cloudflare.com:3478" },
-    ],
+      {
+        urls: "stun:stun.l.google.com:19302"
+      },
+      {
+        urls: "stun:stun.cloudflare.com:3478"
+      }
+    ]
+
   });
 
-  localStream?.getTracks().forEach((track) => {
-    peer.addTrack(track, localStream);
-  });
 
-  if (isHost && movieCaptureStream) addMovieTracks();
+  if (localStream) {
 
-  peer.ontrack = handleRemoteTrack;
+    localStream.getTracks().forEach(track => {
 
-  peer.onicecandidate = (event) => {
-    if (event.candidate && roomId) {
-      socket.emit("webrtc", {
-        roomId,
-        type: "ice",
-        candidate: event.candidate,
-      });
-    }
+      peer.addTrack(
+        track,
+        localStream
+      );
+
+    });
+
+  }
+
+
+  peer.ontrack = event => {
+
+    if (!event.streams?.[0]) return;
+
+    remoteVideo.srcObject =
+      event.streams[0];
+
+    remoteVideo.autoplay = true;
+    remoteVideo.playsInline = true;
+
+    remoteVideo.play().catch(() => {});
+
+    $("remotePlaceholder")?.style.setProperty(
+      "display",
+      "none"
+    );
+
+    setPartnerStatus("●");
+
   };
+
+
+  peer.onicecandidate = event => {
+
+    if (!event.candidate) return;
+
+    socket.emit("webrtc", {
+
+      roomId,
+
+      type: "ice",
+
+      candidate: event.candidate
+
+    });
+
+  };
+
 
   peer.onconnectionstatechange = () => {
-    const state = peer?.connectionState;
-    console.log("WebRTC", state);
 
-    if (state === "connected") {
+    console.log(
+      "WebRTC:",
+      peer.connectionState
+    );
+
+    if (peer.connectionState === "connected") {
+
       setPartnerStatus("●");
-      reconnectingPeer = false;
-    } else if (state === "connecting" || state === "new") {
-      setPartnerStatus("◌");
-    } else if (state === "failed" || state === "disconnected") {
+
+    }
+
+    if (
+      peer.connectionState === "failed" ||
+      peer.connectionState === "disconnected"
+    ) {
+
       setPartnerStatus("○");
-      schedulePeerReconnect();
+
     }
+
   };
 
-  peer.oniceconnectionstatechange = () => {
-    if (peer?.iceConnectionState === "failed") schedulePeerReconnect();
-  };
 
-  return peer;
-}
+  if (offerer) {
 
-function addMovieTracks() {
-  if (!peer || !movieCaptureStream || !isHost) return;
+    const offer =
+      await peer.createOffer();
 
-  const videoTrack = movieCaptureStream.getVideoTracks()[0];
-  const audioTrack = movieCaptureStream.getAudioTracks()[0];
+    await peer.setLocalDescription(
+      offer
+    );
 
-  if (videoTrack && !movieVideoSender) {
-    movieVideoSender = peer.addTrack(videoTrack, movieCaptureStream);
-  }
-  if (audioTrack && !movieAudioSender) {
-    movieAudioSender = peer.addTrack(audioTrack, movieCaptureStream);
-  }
-
-  movieStreamId = movieCaptureStream.id;
-}
-
-async function replaceMovieTracks() {
-  if (!peer || !movieCaptureStream || !isHost) return;
-
-  const videoTrack = movieCaptureStream.getVideoTracks()[0];
-  const audioTrack = movieCaptureStream.getAudioTracks()[0];
-
-  if (movieVideoSender && videoTrack) {
-    await movieVideoSender.replaceTrack(videoTrack);
-  } else if (videoTrack) {
-    movieVideoSender = peer.addTrack(videoTrack, movieCaptureStream);
-  }
-
-  if (movieAudioSender && audioTrack) {
-    await movieAudioSender.replaceTrack(audioTrack);
-  } else if (audioTrack) {
-    movieAudioSender = peer.addTrack(audioTrack, movieCaptureStream);
-  }
-
-  movieStreamId = movieCaptureStream.id;
-}
-
-async function sendOffer() {
-  if (!isHost || !peer) return;
-
-  if (makingOffer || peer.signalingState !== "stable") {
-    queuedOffer = true;
-    return;
-  }
-
-  makingOffer = true;
-
-  try {
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
     socket.emit("webrtc", {
+
       roomId,
+
       type: "offer",
-      sdp: peer.localDescription,
-      movieStreamId: movieStreamId || null,
+
+      sdp: offer
+
     });
-  } catch (error) {
-    console.error("Offer", error);
-  } finally {
-    makingOffer = false;
+
   }
+
 }
 
-async function flushIce() {
-  if (!peer?.remoteDescription) return;
 
-  while (pendingIce.length) {
-    const candidate = pendingIce.shift();
-    try {
-      await peer.addIceCandidate(candidate);
-    } catch (error) {
-      console.warn("ICE candidate", error);
-    }
-  }
-}
+socket.on("webrtc", async message => {
 
-socket.on("webrtc", async (message) => {
   if (!message) return;
 
   try {
+
+    if (!peer) {
+
+      await createPeer(false);
+
+    }
+
+
     if (message.type === "offer") {
-      const newMovieId = message.movieStreamId || null;
-      if (newMovieId !== remoteMovieStreamId) {
-        remoteMovieStreamId = newMovieId;
-        remoteMovieStream = null;
-      }
 
-      await ensurePeer();
-      await peer.setRemoteDescription(new RTCSessionDescription(message.sdp));
-      await flushIce();
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(
+          message.sdp
+        )
+      );
 
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
+
+      const answer =
+        await peer.createAnswer();
+
+
+      await peer.setLocalDescription(
+        answer
+      );
+
 
       socket.emit("webrtc", {
+
         roomId,
+
         type: "answer",
-        sdp: peer.localDescription,
+
+        sdp: answer
+
       });
-      return;
+
+
+      while (pendingIce.length) {
+
+        const candidate =
+          pendingIce.shift();
+
+        await peer.addIceCandidate(
+          candidate
+        );
+
+      }
+
     }
+
 
     if (message.type === "answer") {
-      if (!peer) return;
-      await peer.setRemoteDescription(new RTCSessionDescription(message.sdp));
-      await flushIce();
 
-      if (queuedOffer && peer.signalingState === "stable") {
-        queuedOffer = false;
-        setTimeout(() => sendOffer(), 0);
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(
+          message.sdp
+        )
+      );
+
+
+      while (pendingIce.length) {
+
+        const candidate =
+          pendingIce.shift();
+
+        await peer.addIceCandidate(
+          candidate
+        );
+
       }
-      return;
+
     }
 
-    if (message.type === "ice" && message.candidate) {
-      const candidate = new RTCIceCandidate(message.candidate);
-      if (peer?.remoteDescription) await peer.addIceCandidate(candidate);
-      else pendingIce.push(candidate);
+
+    if (
+      message.type === "ice" &&
+      message.candidate
+    ) {
+
+      const candidate =
+        new RTCIceCandidate(
+          message.candidate
+        );
+
+
+      if (peer.remoteDescription) {
+
+        await peer.addIceCandidate(
+          candidate
+        );
+
+      } else {
+
+        pendingIce.push(candidate);
+
+      }
+
     }
+
   } catch (error) {
-    console.error("WebRTC signal", error);
+
+    console.error(
+      "WebRTC error:",
+      error
+    );
+
   }
+
 });
 
-let reconnectingPeer = false;
-function schedulePeerReconnect() {
-  if (reconnectingPeer || !roomId) return;
-  reconnectingPeer = true;
-  clearTimeout(reconnectTimer);
-  reconnectTimer = setTimeout(async () => {
-    try {
-      peer?.close();
-      peer = null;
-      pendingIce = [];
-      makingOffer = false;
-      queuedOffer = false;
 
-      if (isHost && partnerSocketId && socket.connected) {
-        await ensurePeer();
-        await sendOffer();
-      }
-    } finally {
-      reconnectingPeer = false;
-    }
-  }, 900);
-}
-
-/* -------------------- remote media -------------------- */
-
-function handleRemoteTrack(event) {
-  const stream = event.streams?.[0];
-  const track = event.track;
-  if (!stream) return;
-
-  if (!isHost && remoteMovieStreamId && stream.id === remoteMovieStreamId) {
-    if (!remoteMovieStream) remoteMovieStream = new MediaStream();
-    if (!remoteMovieStream.getTrackById(track.id)) remoteMovieStream.addTrack(track);
-
-    movie.srcObject = remoteMovieStream;
-    movie.autoplay = true;
-    movie.playsInline = true;
-    movie.muted = false;
-    $("emptyState")?.classList.add("hidden");
-
-    if (hostPlaybackState === "playing") {
-      movie.play().catch(() => toast("Tap movie"));
-    } else {
-      movie.pause();
-    }
-
-    track.onended = () => {
-      if (hostPlaybackState === "ended") movie.pause();
-    };
-    return;
-  }
-
-  if (track.kind === "video") {
-    remoteVideo.srcObject = stream;
-    remoteVideo.autoplay = true;
-    remoteVideo.playsInline = true;
-    remoteVideo.play().catch(() => {});
-    $("remotePlaceholder")?.style.setProperty("display", "none");
-    setPartnerStatus("●");
-  }
-}
-
-/* -------------------- playback sync -------------------- */
-
-function stopHeartbeat() {
-  if (heartbeat) clearInterval(heartbeat);
-  heartbeat = null;
-}
-
-function startHeartbeat() {
-  stopHeartbeat();
-  if (!isHost || !movieCaptureStream || !roomId) return;
-  heartbeat = setInterval(() => {
-    if (movie && !movie.paused && !movie.ended) sendPlayback("playing");
-  }, 2000);
-}
-
-function sendPlayback(state) {
-  if (!isHost || !roomId || !movie) return;
-  hostPlaybackState = state;
-  socket.emit("playback-state", {
-    roomId,
-    state,
-    time: Number(movie.currentTime) || 0,
-  });
-}
-
-function applyGuestPlayback(state) {
-  hostPlaybackState = state || "paused";
-  if (!movie?.srcObject) return;
-
-  if (state === "playing") {
-    movie.play().catch(() => toast("Tap movie"));
-  } else {
-    movie.pause();
-  }
-}
-
-socket.on("playback-state", (state) => {
-  if (isHost || !state) return;
-  applyGuestPlayback(state.state);
-});
-
-movie?.addEventListener("play", () => {
-  $("videoWrap")?.classList.remove("paused");
-  if (isHost && movieCaptureStream) {
-    sendPlayback("playing");
-    startHeartbeat();
-  }
-});
-
-movie?.addEventListener("pause", () => {
-  $("videoWrap")?.classList.add("paused");
-  if (isHost && movieCaptureStream && !movie.ended) sendPlayback("paused");
-});
-
-movie?.addEventListener("ended", () => {
-  $("videoWrap")?.classList.add("paused");
-  if (isHost) {
-    stopHeartbeat();
-    sendPlayback("ended");
-    movieCaptureStream?.getTracks().forEach((track) => track.stop());
-  }
-});
-
-movie?.addEventListener("waiting", () => {
-  if (isHost && movieCaptureStream && !movie.ended) sendPlayback("buffering");
-});
-
-movie?.addEventListener("playing", () => {
-  if (isHost && movieCaptureStream && !movie.ended) {
-    sendPlayback("playing");
-    startHeartbeat();
-  }
-});
-
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState !== "visible") return;
-
-  if (!socket.connected && roomId) {
-    socket.connect();
-    return;
-  }
-
-  if (isHost && movieCaptureStream && movie) {
-    sendPlayback(movie.ended ? "ended" : movie.paused ? "paused" : "playing");
-  }
-
-  if (!isHost && movie?.srcObject && hostPlaybackState === "playing") {
-    movie.play().catch(() => {});
-  }
-});
-
-/* -------------------- movie -------------------- */
+/* ---------------- MOVIE ---------------- */
 
 async function loadLocalMovie(file) {
-  if (!file || !movie || !isHost) return;
 
-  if (typeof movie.captureStream !== "function") {
-    toast("Use Chrome");
-    return;
+  if (!file || !isHost || !movie) return;
+
+  if (movieObjectUrl) {
+
+    URL.revokeObjectURL(
+      movieObjectUrl
+    );
+
   }
 
-  movieCaptureStream?.getTracks().forEach((track) => track.stop());
-  movieCaptureStream = null;
-  movieStreamId = null;
+  movieObjectUrl =
+    URL.createObjectURL(file);
 
-  const url = URL.createObjectURL(file);
   movie.srcObject = null;
-  movie.src = url;
-  movie.load();
-  $("emptyState")?.classList.add("hidden");
 
-  await new Promise((resolve) => {
-    if (movie.readyState >= 1) resolve();
-    else movie.addEventListener("loadedmetadata", resolve, { once: true });
+  movie.src = movieObjectUrl;
+
+  movie.load();
+
+  $("emptyState")?.classList.add(
+    "hidden"
+  );
+
+  await new Promise(resolve => {
+
+    if (movie.readyState >= 1) {
+
+      resolve();
+
+    } else {
+
+      movie.addEventListener(
+        "loadedmetadata",
+        resolve,
+        { once: true }
+      );
+
+    }
+
   });
 
-  try {
-    await movie.play();
-  } catch {
-    $("videoWrap")?.classList.add("paused");
-  }
 
-  try {
-    movieCaptureStream = movie.captureStream();
-    movieStreamId = movieCaptureStream.id;
+  $("duration").textContent =
+    formatTime(movie.duration);
 
-    await ensurePeer();
-    await replaceMovieTracks();
+  $("movieTap")?.style.setProperty(
+    "display",
+    "none"
+  );
 
-    if (partnerSocketId) await sendOffer();
-    startHeartbeat();
-    sendPlayback(movie.paused ? "paused" : "playing");
 
-    socket.emit("movie-meta", {
-      roomId,
-      name: file.name,
-      duration: Number(movie.duration) || 0,
-    });
+  movie.play().catch(() => {});
 
-    toast("Streaming");
-  } catch (error) {
-    console.error("Movie stream", error);
-    toast("Could not stream movie");
-  }
+  socket.emit("movie-meta", {
 
-  movieFile.value = "";
+    roomId,
+
+    name: file.name,
+
+    duration: movie.duration
+
+  });
+
+  toast("Movie loaded");
+
 }
 
-movieFile?.addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (file) loadLocalMovie(file);
-});
 
-$("chooseMovieBtn")?.addEventListener("click", () => movieFile?.click());
-$("changeMovie")?.addEventListener("click", () => movieFile?.click());
+movieFile?.addEventListener(
+  "change",
+  event => {
+
+    const file =
+      event.target.files?.[0];
+
+    if (file) {
+
+      loadLocalMovie(file);
+
+    }
+
+  }
+);
+
+
+$("chooseMovieBtn")?.addEventListener(
+  "click",
+  () => movieFile?.click()
+);
+
+
+$("changeMovie")?.addEventListener(
+  "click",
+  () => movieFile?.click()
+);
+
 
 function setMovieMeta(data) {
-  if ($("movieName")) $("movieName").textContent = data.name || "";
-  if ($("movieTitle")) $("movieTitle").textContent = data.name || "";
-  if ($("duration") && Number(data.duration) > 0) $("duration").textContent = formatTime(Number(data.duration));
+
+  if ($("movieTitle")) {
+
+    $("movieTitle").textContent =
+      data.name || "";
+
+  }
+
+  if ($("movieName")) {
+
+    $("movieName").textContent =
+      data.name || "";
+
+  }
+
+  if (
+    $("duration") &&
+    Number(data.duration) > 0
+  ) {
+
+    $("duration").textContent =
+      formatTime(
+        Number(data.duration)
+      );
+
+  }
+
 }
 
-socket.on("movie-meta", setMovieMeta);
 
-/* -------------------- movie controls -------------------- */
+socket.on(
+  "movie-meta",
+  setMovieMeta
+);
+
+
+/* ---------------- PLAYBACK ---------------- */
 
 async function togglePlay() {
+
   if (!movie) return;
 
-  if (!isHost) {
-    movie.play().catch(() => toast("Tap movie"));
-    return;
+  if (movie.paused) {
+
+    await movie.play().catch(() => {});
+
+  } else {
+
+    movie.pause();
+
   }
 
-  if (movie.paused) await movie.play().catch(() => {});
-  else movie.pause();
 }
 
-$("playBtn")?.addEventListener("click", togglePlay);
-$("movieTap")?.addEventListener("click", togglePlay);
-$("videoWrap")?.addEventListener("pointermove", showMovieControls);
-$("movie")?.addEventListener("click", showMovieControls);
 
-$("seek")?.addEventListener("input", (event) => {
-  if (!isHost || !movie?.duration) return;
-  movie.currentTime = (Number(event.target.value) / 100) * movie.duration;
-});
+$("playBtn")?.addEventListener(
+  "click",
+  togglePlay
+);
 
-$("seek")?.addEventListener("change", () => {
-  if (isHost) sendPlayback(movie?.paused ? "paused" : "playing");
-});
 
-movie?.addEventListener("timeupdate", () => {
-  if ($("currentTime")) $("currentTime").textContent = formatTime(movie.currentTime);
-  if ($("seek") && isHost && Number.isFinite(movie.duration)) {
-    $("seek").value = (movie.currentTime / movie.duration) * 100;
+$("movieTap")?.addEventListener(
+  "click",
+  togglePlay
+);
+
+
+movie?.addEventListener(
+  "play",
+  () => {
+
+    $("movieTap")?.style.setProperty(
+      "display",
+      "none"
+    );
+
+    if (!isHost || !roomId) return;
+
+    socket.emit("playback", {
+
+      roomId,
+
+      action: "play",
+
+      time: movie.currentTime
+
+    });
+
   }
-});
+);
 
-movie?.addEventListener("loadedmetadata", () => {
-  if ($("duration")) $("duration").textContent = formatTime(movie.duration);
-});
 
-$("muteBtn")?.addEventListener("click", () => {
-  if (movie) movie.muted = !movie.muted;
-});
+movie?.addEventListener(
+  "pause",
+  () => {
 
-$("fullscreenBtn")?.addEventListener("click", () => {
-  $("videoWrap")?.requestFullscreen?.();
-});
+    if ($("movieTap")) {
 
-/* -------------------- chat / reactions -------------------- */
+      $("movieTap").style.display =
+        "flex";
 
-$("chatForm")?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const input = $("chatInput");
-  const text = input?.value.trim();
-  if (!text || !roomId) return;
-  addMessage(text, true);
-  socket.emit("chat", { roomId, text });
-  input.value = "";
-});
+    }
 
-socket.on("chat", (data) => {
-  if (data?.text) addMessage(data.text, false);
-});
+    if (!isHost || !roomId) return;
 
-$("reactionRow")?.addEventListener("click", (event) => {
-  const button = event.target.closest("button");
-  const emoji = button?.dataset.reaction;
-  if (!emoji || !roomId) return;
-  showReaction(emoji);
-  socket.emit("reaction", { roomId, emoji });
-});
+    socket.emit("playback", {
 
-socket.on("reaction", (data) => {
-  if (data?.emoji) showReaction(data.emoji);
-});
+      roomId,
 
-/* -------------------- camera controls -------------------- */
+      action: "pause",
 
-$("micBtn")?.addEventListener("click", async () => {
-  await startCamera();
-  const track = localStream?.getAudioTracks()[0];
-  if (!track) return;
-  track.enabled = !track.enabled;
-  toast(track.enabled ? "Mic on" : "Mic off");
-});
+      time: movie.currentTime
 
-$("cameraBtn")?.addEventListener("click", async () => {
-  await startCamera();
-  const track = localStream?.getVideoTracks()[0];
-  if (!track) return;
-  track.enabled = !track.enabled;
-  $("localPlaceholder")?.style.setProperty("display", track.enabled ? "none" : "grid");
-});
+    });
 
-/* -------------------- sharing / exit -------------------- */
+  }
+);
+
+
+movie?.addEventListener(
+  "timeupdate",
+  () => {
+
+    if ($("currentTime")) {
+
+      $("currentTime").textContent =
+        formatTime(movie.currentTime);
+
+    }
+
+    if (
+      $("seek") &&
+      isHost &&
+      Number.isFinite(movie.duration)
+    ) {
+
+      $("seek").value =
+        (movie.currentTime /
+          movie.duration) *
+        100;
+
+    }
+
+  }
+);
+
+
+movie?.addEventListener(
+  "loadedmetadata",
+  () => {
+
+    if ($("duration")) {
+
+      $("duration").textContent =
+        formatTime(movie.duration);
+
+    }
+
+  }
+);
+
+
+$("seek")?.addEventListener(
+  "input",
+  event => {
+
+    if (!isHost || !movie.duration) return;
+
+    movie.currentTime =
+      (Number(event.target.value) / 100) *
+      movie.duration;
+
+  }
+);
+
+
+$("seek")?.addEventListener(
+  "change",
+  () => {
+
+    if (!isHost) return;
+
+    socket.emit("playback", {
+
+      roomId,
+
+      action: "seek",
+
+      time: movie.currentTime
+
+    });
+
+  }
+);
+
+
+socket.on(
+  "playback",
+  data => {
+
+    if (isHost || !data) return;
+
+    ignorePlayback = true;
+
+    if (
+      Math.abs(
+        movie.currentTime -
+        Number(data.time || 0)
+      ) > 0.5
+    ) {
+
+      movie.currentTime =
+        Number(data.time || 0);
+
+    }
+
+    if (data.action === "play") {
+
+      movie.play().catch(() => {});
+
+    }
+
+    if (data.action === "pause") {
+
+      movie.pause();
+
+    }
+
+    setTimeout(
+      () => {
+        ignorePlayback = false;
+      },
+      100
+    );
+
+  }
+);
+
+
+/* ---------------- CHAT ---------------- */
+
+function addMessage(text, mine = false) {
+
+  const list =
+    $("messages");
+
+  if (!list) return;
+
+  $("messageEmpty")?.remove();
+
+  const item =
+    document.createElement("div");
+
+  item.className =
+    `bubble${mine ? " me" : ""}`;
+
+  item.textContent =
+    text;
+
+  list.appendChild(item);
+
+  list.scrollTop =
+    list.scrollHeight;
+
+}
+
+
+$("chatForm")?.addEventListener(
+  "submit",
+  event => {
+
+    event.preventDefault();
+
+    const input =
+      $("chatInput");
+
+    const text =
+      input?.value.trim();
+
+    if (!text || !roomId) return;
+
+    addMessage(
+      text,
+      true
+    );
+
+    socket.emit(
+      "chat",
+      {
+        roomId,
+        text
+      }
+    );
+
+    input.value = "";
+
+  }
+);
+
+
+socket.on(
+  "chat",
+  data => {
+
+    if (data?.text) {
+
+      addMessage(
+        data.text,
+        false
+      );
+
+    }
+
+  }
+);
+
+
+/* ---------------- REACTIONS ---------------- */
+
+function showReaction(emoji) {
+
+  const el =
+    document.createElement("div");
+
+  el.className =
+    "float-reaction";
+
+  el.textContent =
+    emoji;
+
+  el.style.left =
+    `${25 + Math.random() * 60}vw`;
+
+  el.style.top =
+    `${55 + Math.random() * 25}vh`;
+
+  document.body.appendChild(el);
+
+  setTimeout(
+    () => el.remove(),
+    1500
+  );
+
+}
+
+
+$("reactionRow")?.addEventListener(
+  "click",
+  event => {
+
+    const button =
+      event.target.closest("button");
+
+    if (!button) return;
+
+    const emoji =
+      button.dataset.reaction;
+
+    if (!emoji || !roomId) return;
+
+    showReaction(emoji);
+
+    socket.emit(
+      "reaction",
+      {
+        roomId,
+        emoji
+      }
+    );
+
+  }
+);
+
+
+socket.on(
+  "reaction",
+  data => {
+
+    if (data?.emoji) {
+
+      showReaction(
+        data.emoji
+      );
+
+    }
+
+  }
+);
+
+
+/* ---------------- CAMERA CONTROLS ---------------- */
+
+$("micBtn")?.addEventListener(
+  "click",
+  async () => {
+
+    await startCamera();
+
+    const track =
+      localStream?.getAudioTracks()[0];
+
+    if (!track) return;
+
+    track.enabled =
+      !track.enabled;
+
+    toast(
+      track.enabled
+        ? "Mic on"
+        : "Mic off"
+    );
+
+  }
+);
+
+
+$("cameraBtn")?.addEventListener(
+  "click",
+  async () => {
+
+    await startCamera();
+
+    const track =
+      localStream?.getVideoTracks()[0];
+
+    if (!track) return;
+
+    track.enabled =
+      !track.enabled;
+
+    $("localPlaceholder")?.style.setProperty(
+      "display",
+      track.enabled
+        ? "none"
+        : "grid"
+    );
+
+  }
+);
+
+
+/* ---------------- SHARING ---------------- */
 
 async function shareRoom() {
-  if (!roomId) return;
-  const url = location.href;
+
+  if (!roomId) {
+
+    toast("Create a room first");
+
+    return;
+
+  }
+
+  const url =
+    location.href;
 
   try {
+
     if (navigator.share) {
-      await navigator.share({ title: "MovieDate", url });
+
+      await navigator.share({
+        title: "MovieDate",
+        text: "Join our MovieDate room",
+        url
+      });
+
     } else {
-      await navigator.clipboard.writeText(url);
+
+      await navigator.clipboard.writeText(
+        url
+      );
+
       toast("Link copied");
+
     }
+
   } catch {}
+
 }
 
-$("shareBtn")?.addEventListener("click", shareRoom);
-$("roomPill")?.addEventListener("click", shareRoom);
-$("exitBtn")?.addEventListener("click", leaveRoom);
 
-/* -------------------- room gate -------------------- */
+$("shareBtn")?.addEventListener(
+  "click",
+  shareRoom
+);
 
-$("createRoomBtn")?.addEventListener("click", createRoom);
-$("joinPromptBtn")?.addEventListener("click", () => {
-  $("joinSheet").hidden = false;
-  setTimeout(() => $("roomCodeInput")?.focus(), 40);
-});
-$("closeJoinBtn")?.addEventListener("click", () => {
-  $("joinSheet").hidden = true;
-});
-$("joinRoomBtn")?.addEventListener("click", async () => {
-  const code = $("roomCodeInput")?.value.trim().toUpperCase();
-  if (!code) return;
-  isHost = false;
-  joinedOnServer = false;
-  joinInProgress = false;
-  $("joinSheet").hidden = true;
-  await joinRoom(code);
-});
-$("roomCodeInput")?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") $("joinRoomBtn")?.click();
-});
 
-/* -------------------- initial -------------------- */
+$("roomPill")?.addEventListener(
+  "click",
+  shareRoom
+);
+
+
+/* ---------------- FULLSCREEN ---------------- */
+
+$("fullscreenBtn")?.addEventListener(
+  "click",
+  () => {
+
+    $("videoWrap")
+      ?.requestFullscreen?.();
+
+  }
+);
+
+
+/* ---------------- LEAVE ---------------- */
+
+$("exitBtn")?.addEventListener(
+  "click",
+  leaveRoom
+);
+
+
+/* ---------------- ROOM GATE ---------------- */
+
+$("createRoomBtn")?.addEventListener(
+  "click",
+  createRoom
+);
+
+
+$("joinPromptBtn")?.addEventListener(
+  "click",
+  () => {
+
+    $("joinSheet").hidden =
+      false;
+
+    setTimeout(
+      () =>
+        $("roomCodeInput")?.focus(),
+      50
+    );
+
+  }
+);
+
+
+$("closeJoinBtn")?.addEventListener(
+  "click",
+  () => {
+
+    $("joinSheet").hidden =
+      true;
+
+  }
+);
+
+
+$("joinRoomBtn")?.addEventListener(
+  "click",
+  async () => {
+
+    const code =
+      $("roomCodeInput")
+        ?.value
+        .trim()
+        .toUpperCase();
+
+    if (!code) return;
+
+    isHost = false;
+
+    $("joinSheet").hidden =
+      true;
+
+    await joinRoom(code);
+
+  }
+);
+
+
+$("roomCodeInput")?.addEventListener(
+  "keydown",
+  event => {
+
+    if (event.key === "Enter") {
+
+      $("joinRoomBtn")?.click();
+
+    }
+
+  }
+);
+
+
+/* ---------------- INITIAL ---------------- */
 
 if (roomId) {
-  $("roomCode").textContent = roomId;
-  updateHostUI();
+
+  $("roomCode").textContent =
+    roomId;
+
   showGate(false);
+
+  if (socket.connected) {
+
+    socket.emit(
+      "join-room",
+      { roomId }
+    );
+
+  }
+
 } else {
-  $("roomCode").textContent = "—";
+
+  $("roomCode").textContent =
+    "—";
+
   showGate(true);
+
 }
+
+console.log(
+  "MovieDate frontend loaded"
+);
