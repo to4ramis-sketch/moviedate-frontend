@@ -16,6 +16,10 @@ let cameraIceQueue = [];
 let movieIceQueue = [];
 let suppressMovieEvent = false;
 let objectUrl = null;
+let ffmpeg = null;
+let ffmpegLoaded = false;
+let ffmpegLoading = null;
+let convertedObjectUrl = null;
 
 const $ = id => document.getElementById(id);
 const movie = $("movie");
@@ -23,9 +27,9 @@ const movieFile = $("movieFile");
 const localVideo = $("localVideo");
 const remoteVideo = $("remoteVideo");
 
-// Let the device file picker show MKV as well. Note: standard Chrome/Android
-// still cannot decode MKV natively; MP4 (H.264/AAC) or WebM is required for
-// actual in-browser playback unless an MKV decoder/transcoder is added.
+// Allow MP4, WebM and MKV in the device picker. MKV is handled by the
+// browser natively when supported; otherwise FFmpeg WebAssembly converts it
+// locally on the device before playback/streaming.
 if (movieFile) {
   movieFile.accept = "video/mp4,video/webm,video/x-matroska,.mp4,.webm,.mkv";
 }
@@ -556,45 +560,210 @@ function restoreChooseMovieState() {
   if (button) button.textContent = "Choose movie";
 }
 
-movieFile?.addEventListener("change", event => {
-  const file = event.target.files?.[0];
-  if (!file) return;
+function loadExternalScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      if (existing.dataset.loaded === "true") resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
+    script.onerror = () => reject(new Error(`Could not load ${src}`));
+    document.head.appendChild(script);
+  });
+}
 
-  const isMkv = /\.mkv$/i.test(file.name) || file.type === "video/x-matroska";
-  if (isMkv) {
-    // Chrome/Android does not natively decode MKV in a normal <video> element.
-    // We accept MKV in the picker so it is not rejected, but explain the
-    // browser limitation instead of leaving the player silently broken.
-    toast("MKV selected — this browser needs MKV converted to MP4/WebM to play it");
-    movieFile.value = "";
-    return;
+async function ensureFFmpegLibraries() {
+  if (window.FFmpegWASM && window.FFmpegUtil) return;
+  await loadExternalScript("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js");
+  await loadExternalScript("https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/umd/index.js");
+}
+
+async function ensureFFmpegLoaded() {
+  if (ffmpegLoaded && ffmpeg) return ffmpeg;
+  if (ffmpegLoading) return ffmpegLoading;
+
+  ffmpegLoading = (async () => {
+    await ensureFFmpegLibraries();
+    if (!window.FFmpegWASM || !window.FFmpegUtil) {
+      throw new Error("FFmpeg library is not available");
+    }
+
+    const { FFmpeg } = window.FFmpegWASM;
+    const { toBlobURL } = window.FFmpegUtil;
+    ffmpeg = new FFmpeg();
+    ffmpeg.on("log", ({ message }) => console.log("FFMPEG:", message));
+
+    const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+    const workerBase = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd";
+
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+      classWorkerURL: await toBlobURL(`${workerBase}/814.ffmpeg.js`, "text/javascript")
+    });
+
+    ffmpegLoaded = true;
+    return ffmpeg;
+  })();
+
+  try {
+    return await ffmpegLoading;
+  } finally {
+    ffmpegLoading = null;
   }
+}
 
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(file);
+async function convertMkvToMp4(file) {
+  const engine = await ensureFFmpegLoaded();
+  const { fetchFile } = window.FFmpegUtil;
+  const inputName = "moviedate-input.mkv";
+  const outputName = "moviedate-output.mp4";
 
-  restoreChooseMovieState();
-  resetMovieStreamForNewMovie();
-  movie.srcObject = null;
-  movie.src = objectUrl;
-  movie.load();
-  movie.muted = false;
-  movie.playsInline = true;
+  try {
+    toast("Loading MKV decoder…");
+    await engine.writeFile(inputName, await fetchFile(file));
 
-  show("emptyState", false);
-  show("movieTitle", true);
-  show("movieLoading", false);
-  setText("movieTitleText", file.name);
+    // First try a fast remux. This keeps the original video/audio quality.
+    try {
+      await engine.exec([
+        "-i", inputName,
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-c", "copy",
+        "-movflags", "+faststart",
+        outputName
+      ]);
+    } catch (remuxError) {
+      console.warn("MKV remux failed; transcoding to H.264/AAC:", remuxError);
+      try { await engine.deleteFile(outputName); } catch (_) {}
 
-  socket.emit("movie-meta", { name: file.name });
-  toast("Movie ready");
+      await engine.exec([
+        "-i", inputName,
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "+faststart",
+        outputName
+      ]);
+    }
+
+    const data = await engine.readFile(outputName);
+    const blob = new Blob([data.buffer], { type: "video/mp4" });
+    return new File([blob], file.name.replace(/\.mkv$/i, ".mp4"), { type: "video/mp4" });
+  } finally {
+    try { await engine.deleteFile(inputName); } catch (_) {}
+    try { await engine.deleteFile(outputName); } catch (_) {}
+  }
+}
+
+movieFile?.addEventListener("change", async event => {
+  const originalFile = event.target.files?.[0];
+  if (!originalFile) return;
+  window.__movieDateOriginalFile = originalFile;
+
+  const isMkv = /\.mkv$/i.test(originalFile.name) || originalFile.type === "video/x-matroska";
+  let file = originalFile;
+
+  try {
+    if (isMkv) {
+      // Let browsers that can decode this MKV play it directly first.
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(originalFile);
+      movie.srcObject = null;
+      movie.src = objectUrl;
+      movie.load();
+      movie.muted = false;
+      movie.playsInline = true;
+      show("emptyState", false);
+      show("movieLoading", true);
+      setText("movieTitleText", originalFile.name);
+      show("movieTitle", true);
+
+      // Give native playback a chance. If it fails, the error handler below
+      // will automatically run the FFmpeg fallback.
+      try { await movie.play(); } catch (_) {}
+      if (!movie.error) {
+        toast("MKV ready");
+        socket.emit("movie-meta", { name: originalFile.name });
+        return;
+      }
+
+      file = await convertMkvToMp4(originalFile);
+    }
+
+    if (convertedObjectUrl) {
+      URL.revokeObjectURL(convertedObjectUrl);
+      convertedObjectUrl = null;
+    }
+
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+
+    restoreChooseMovieState();
+    resetMovieStreamForNewMovie();
+    movie.srcObject = null;
+    movie.src = objectUrl;
+    movie.load();
+    movie.muted = false;
+    movie.playsInline = true;
+
+    show("emptyState", false);
+    show("movieTitle", true);
+    show("movieLoading", false);
+    setText("movieTitleText", originalFile.name);
+
+    socket.emit("movie-meta", { name: originalFile.name });
+    toast(isMkv ? "MKV decoded — movie ready" : "Movie ready");
+  } catch (error) {
+    console.error("MOVIE FILE ERROR:", error);
+    show("movieLoading", false);
+    toast(isMkv ? "Could not decode this MKV on this device" : "Could not load this movie");
+  } finally {
+    // Allows selecting the same file again.
+    movieFile.value = "";
+  }
 });
 
-movie?.addEventListener("error", () => {
-  const fileName = movieFile?.files?.[0]?.name || "this movie";
-  console.error("MOVIE MEDIA ERROR:", movie.error, fileName);
+let mkvFallbackRunning = false;
+movie?.addEventListener("error", async () => {
+  const file = window.__movieDateOriginalFile;
+  console.error("MOVIE MEDIA ERROR:", movie.error, file?.name || "this movie");
   show("movieLoading", false);
-  toast("This video format cannot be played in Chrome. Use MP4 (H.264/AAC) or WebM.");
+
+  if (file && (/\.mkv$/i.test(file.name) || file.type === "video/x-matroska") && !mkvFallbackRunning) {
+    mkvFallbackRunning = true;
+    try {
+      const converted = await convertMkvToMp4(file);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(converted);
+      resetMovieStreamForNewMovie();
+      movie.srcObject = null;
+      movie.src = objectUrl;
+      movie.load();
+      show("emptyState", false);
+      show("movieLoading", false);
+      setText("movieTitleText", file.name);
+      socket.emit("movie-meta", { name: file.name });
+      toast("MKV decoded — movie ready");
+    } catch (error) {
+      console.error("MKV DECODER ERROR:", error);
+      toast("Could not decode this MKV on this device");
+    } finally {
+      mkvFallbackRunning = false;
+    }
+  } else {
+    toast("This video cannot be played. Try another file.");
+  }
 });
 
 movie?.addEventListener("loadedmetadata", () => {
