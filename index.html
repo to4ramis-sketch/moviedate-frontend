@@ -30,7 +30,7 @@
       class="room-pill"
       id="roomPill"
       type="button"
-      aria-label="Copy room link"
+      aria-label="Share room"
     >
       <span id="roomStatus" class="status-dot"></span>
       <span id="roomCode">—</span>
@@ -41,7 +41,6 @@
       id="exitBtn"
       type="button"
       aria-label="Leave room"
-      title="Leave room"
     >
       <svg viewBox="0 0 24 24">
         <path d="M9 6H5.8A1.8 1.8 0 0 0 4 7.8v8.4A1.8 1.8 0 0 0 5.8 18H9M14 16l4-4-4-4M18 12H9"/>
@@ -51,13 +50,16 @@
   </header>
 
 
-  <!-- WATCH AREA -->
+  <!-- MAIN WATCH AREA -->
   <section class="watch-layout">
 
     <!-- MOVIE -->
     <section class="movie-panel">
 
-      <div class="video-wrap" id="videoWrap">
+      <div
+        class="video-wrap no-movie"
+        id="videoWrap"
+      >
 
         <video
           id="movie"
@@ -65,46 +67,76 @@
           preload="metadata"
         ></video>
 
-        <div class="empty-state" id="emptyState">
+
+        <!-- EMPTY MOVIE STATE -->
+        <div
+          class="empty-state"
+          id="emptyState"
+        >
 
           <button
             class="add-movie"
             id="chooseMovieBtn"
             type="button"
-            aria-label="Choose movie"
-            title="Choose movie"
+            aria-label="Add movie"
           >
+
             <svg viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14"/>
             </svg>
+
           </button>
 
-          <input
-            id="movieFile"
-            type="file"
-            accept="video/*"
-            hidden
-          >
+          <div class="empty-title">
+            ADD MOVIE
+          </div>
+
+          <div class="empty-subtitle">
+            Choose a video from your device
+          </div>
 
         </div>
 
-        <div class="movie-badge" id="syncBadge">
-          Offline
+
+        <!-- IMPORTANT:
+             hidden file input -->
+        <input
+          id="movieFile"
+          type="file"
+          accept="video/*,.mp4,.webm,.mov,.mkv"
+          hidden
+        >
+
+
+        <!-- MOVIE INFO -->
+        <div
+          class="movie-badge"
+          id="syncBadge"
+        >
+          Ready
         </div>
 
+
+        <!-- PLAY OVERLAY -->
         <button
           class="movie-tap"
           id="movieTap"
           type="button"
           aria-label="Play movie"
-          title="Play"
         >
+
           <svg viewBox="0 0 24 24">
             <path d="m9 6 9 6-9 6z"/>
           </svg>
+
         </button>
 
-        <div class="controls" id="movieControls">
+
+        <!-- MOVIE CONTROLS -->
+        <div
+          class="controls"
+          id="movieControls"
+        >
 
           <div class="timeline-row">
 
@@ -128,6 +160,7 @@
 
           </div>
 
+
           <div class="control-row">
 
             <button
@@ -135,49 +168,57 @@
               id="playBtn"
               type="button"
               aria-label="Play"
-              title="Play"
             >
+
               <svg viewBox="0 0 24 24">
                 <path d="m9 6 9 6-9 6z"/>
               </svg>
+
             </button>
+
 
             <button
               class="control-btn"
               id="muteBtn"
               type="button"
-              aria-label="Mute movie"
-              title="Mute movie"
+              aria-label="Mute"
             >
+
               <svg viewBox="0 0 24 24">
                 <path d="M4 10v4h4l5 4V6l-5 4H4Zm12-1.5a5 5 0 0 1 0 7M16 5a9 9 0 0 1 0 14"/>
               </svg>
+
             </button>
 
+
             <span class="control-spacer"></span>
+
 
             <button
               class="control-btn"
               id="changeMovie"
               type="button"
               aria-label="Change movie"
-              title="Change movie"
             >
+
               <svg viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6zM9 10h6M9 14h6"/>
               </svg>
+
             </button>
+
 
             <button
               class="control-btn"
               id="fullscreenBtn"
               type="button"
               aria-label="Fullscreen"
-              title="Fullscreen"
             >
+
               <svg viewBox="0 0 24 24">
                 <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/>
               </svg>
+
             </button>
 
           </div>
@@ -189,18 +230,32 @@
     </section>
 
 
-    <!-- SIDE PANEL -->
+    <!-- RIGHT SIDE -->
     <aside class="side-panel">
+
 
       <!-- PEOPLE -->
       <div class="people">
 
+
+        <!-- YOU -->
         <div class="person-card">
 
           <div class="person-head">
-            <span>You</span>
-            <span id="youStatus">○</span>
+
+            <span>
+              You
+            </span>
+
+            <span
+              id="youStatus"
+              class="person-status"
+            >
+              ○ offline
+            </span>
+
           </div>
+
 
           <div class="camera-box">
 
@@ -215,7 +270,7 @@
               class="camera-placeholder"
               id="localPlaceholder"
             >
-              YOU
+              CAMERA
             </div>
 
           </div>
@@ -223,12 +278,24 @@
         </div>
 
 
+        <!-- PARTNER -->
         <div class="person-card">
 
           <div class="person-head">
-            <span>Partner</span>
-            <span id="partnerStatus">○</span>
+
+            <span>
+              Partner
+            </span>
+
+            <span
+              id="partnerStatus"
+              class="person-status"
+            >
+              ○ waiting
+            </span>
+
           </div>
+
 
           <div class="camera-box">
 
@@ -242,7 +309,7 @@
               class="camera-placeholder"
               id="remotePlaceholder"
             >
-              PARTNER
+              WAITING
             </div>
 
           </div>
@@ -259,13 +326,16 @@
           class="messages"
           id="messages"
         >
+
           <div
             class="system-message"
             id="messageEmpty"
           >
             Say hi.
           </div>
+
         </div>
+
 
         <form
           class="chat-form"
@@ -276,17 +346,18 @@
             id="chatInput"
             maxlength="240"
             autocomplete="off"
-            placeholder="Message"
+            placeholder="Message your partner..."
           >
 
           <button
             type="submit"
             aria-label="Send"
-            title="Send"
           >
+
             <svg viewBox="0 0 24 24">
               <path d="m5 12 14-7-4 14-4-6-6-1Zm6 1 3 2"/>
             </svg>
+
           </button>
 
         </form>
@@ -300,14 +371,14 @@
         id="reactionRow"
       >
 
-        <button type="button" data-reaction="❤️" aria-label="Love">❤️</button>
-        <button type="button" data-reaction="🥰" aria-label="Adore">🥰</button>
-        <button type="button" data-reaction="😘" aria-label="Kiss">😘</button>
-        <button type="button" data-reaction="😍" aria-label="Love this">😍</button>
-        <button type="button" data-reaction="🥹" aria-label="Emotional">🥹</button>
-        <button type="button" data-reaction="🔥" aria-label="Hot">🔥</button>
-        <button type="button" data-reaction="😂" aria-label="Funny">😂</button>
-        <button type="button" data-reaction="✨" aria-label="Magical">✨</button>
+        <button type="button" data-reaction="❤️">❤️</button>
+        <button type="button" data-reaction="🥰">🥰</button>
+        <button type="button" data-reaction="😘">😘</button>
+        <button type="button" data-reaction="😍">😍</button>
+        <button type="button" data-reaction="🥹">🥹</button>
+        <button type="button" data-reaction="🔥">🔥</button>
+        <button type="button" data-reaction="😂">😂</button>
+        <button type="button" data-reaction="✨">✨</button>
 
       </div>
 
@@ -319,33 +390,38 @@
           id="micBtn"
           type="button"
           aria-label="Microphone"
-          title="Microphone"
         >
+
           <svg viewBox="0 0 24 24">
             <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Zm-6 8a6 6 0 0 0 12 0M12 18v3M8 21h8"/>
           </svg>
+
         </button>
+
 
         <button
           id="cameraBtn"
           type="button"
           aria-label="Camera"
-          title="Camera"
         >
+
           <svg viewBox="0 0 24 24">
             <path d="M4 7h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 3 5-3v10l-5-3z"/>
           </svg>
+
         </button>
+
 
         <button
           id="shareBtn"
           type="button"
           aria-label="Share room"
-          title="Share room"
         >
+
           <svg viewBox="0 0 24 24">
             <path d="M12 16V3m0 0-4 4m4-4 4 4M5 12v7h14v-7"/>
           </svg>
+
         </button>
 
       </div>
@@ -365,10 +441,6 @@
 
       <div class="gate-logo">
         Movie<span>Date</span>
-      </div>
-
-      <div class="gate-subtitle">
-        Watch together. Even when you're apart.
       </div>
 
       <button
@@ -392,7 +464,7 @@
   </div>
 
 
-  <!-- JOIN SHEET -->
+  <!-- JOIN -->
   <div
     class="join-sheet"
     id="joinSheet"
@@ -405,18 +477,13 @@
         class="sheet-close"
         id="closeJoinBtn"
         type="button"
-        aria-label="Close"
       >
         ×
       </button>
 
-      <div class="sheet-title">
-        Join your date
-      </div>
-
       <input
         id="roomCodeInput"
-        maxlength="5"
+        maxlength="12"
         inputmode="text"
         autocomplete="off"
         placeholder="ROOM CODE"
@@ -427,7 +494,7 @@
         id="joinRoomBtn"
         type="button"
       >
-        Join room
+        Join
       </button>
 
     </div>
@@ -444,10 +511,8 @@
 </main>
 
 
-<!-- SOCKET.IO -->
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 
-<!-- APP -->
 <script src="./app.js"></script>
 
 </body>
