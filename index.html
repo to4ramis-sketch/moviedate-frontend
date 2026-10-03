@@ -5,10 +5,8 @@
 
   <meta
     name="viewport"
-    content="width=device-width,initial-scale=1,viewport-fit=cover"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   >
-
-  <meta name="theme-color" content="#08080a">
 
   <title>MovieDate</title>
 
@@ -17,309 +15,216 @@
 
 <body>
 
-<!-- =====================================================
-     ROOM GATE
-     IMPORTANT: OUTSIDE THE APP
-     ===================================================== -->
+  <!-- =========================================
+       ROOM START SCREEN
+  ========================================== -->
 
-<div
-  class="room-gate"
-  id="roomGate"
->
+  <div class="room-gate" id="roomGate">
 
-  <div class="gate-card">
+    <div class="gate-card">
 
-    <div class="gate-logo">
-      Movie<span>Date</span>
+      <div class="gate-logo">
+        Movie<span>Date</span>
+      </div>
+
+      <p class="gate-subtitle">
+        Watch together. Anywhere.
+      </p>
+
+      <button
+        id="createRoomBtn"
+        class="gate-primary"
+        type="button"
+      >
+        Create a room
+      </button>
+
+      <button
+        id="joinPromptBtn"
+        class="gate-secondary"
+        type="button"
+      >
+        Join with code
+      </button>
+
     </div>
-
-    <button
-      class="gate-primary"
-      id="createRoomBtn"
-      type="button"
-    >
-      Create room
-    </button>
-
-    <button
-      class="gate-secondary"
-      id="joinPromptBtn"
-      type="button"
-    >
-      Join with code
-    </button>
 
   </div>
 
-</div>
 
+  <!-- =========================================
+       JOIN ROOM SHEET
+  ========================================== -->
 
-<!-- =====================================================
-     JOIN SHEET
-     ===================================================== -->
+  <div
+    class="join-sheet hidden"
+    id="joinSheet"
+  >
 
-<div
-  class="join-sheet"
-  id="joinSheet"
-  hidden
->
+    <div class="join-card">
 
-  <div class="sheet-card">
+      <button
+        id="closeJoinBtn"
+        class="join-close"
+        type="button"
+      >
+        ×
+      </button>
 
-    <button
-      class="sheet-close"
-      id="closeJoinBtn"
-      type="button"
-    >
-      ×
-    </button>
+      <h2>Join a room</h2>
 
-    <input
-      id="roomCodeInput"
-      maxlength="12"
-      inputmode="text"
-      autocomplete="off"
-      placeholder="ROOM CODE"
-    >
+      <p>
+        Enter the room code from your partner.
+      </p>
 
-    <button
-      class="gate-primary"
-      id="joinRoomBtn"
-      type="button"
-    >
-      Join
-    </button>
-
-  </div>
-
-</div>
-
-
-<!-- =====================================================
-     MAIN APP
-     ===================================================== -->
-
-<main
-  class="app hidden"
-  id="app"
->
-
-  <!-- TOP BAR -->
-
-  <header class="topbar">
-
-    <div class="brand">
-      Movie<span>Date</span>
-    </div>
-
-    <button
-      class="room-pill"
-      id="roomPill"
-      type="button"
-      aria-label="Share room"
-    >
-
-      <span
-        id="roomStatus"
-        class="status-dot"
-      ></span>
-
-      <span id="roomCode">—</span>
-
-    </button>
-
-    <button
-      class="icon-btn top-exit"
-      id="exitBtn"
-      type="button"
-      aria-label="Leave room"
-    >
-
-      <svg viewBox="0 0 24 24">
-        <path d="M9 6H5.8A1.8 1.8 0 0 0 4 7.8v8.4A1.8 1.8 0 0 0 5.8 18H9M14 16l4-4-4-4M18 12H9"/>
-      </svg>
-
-    </button>
-
-  </header>
-
-
-  <!-- =================================================
-       MAIN WATCH AREA
-       ================================================= -->
-
-  <section class="watch-layout">
-
-
-    <!-- MOVIE -->
-
-    <section class="movie-panel">
-
-      <div
-        class="video-wrap no-movie"
-        id="videoWrap"
+      <input
+        id="roomCodeInput"
+        type="text"
+        maxlength="12"
+        placeholder="ROOM CODE"
+        autocomplete="off"
+        autocapitalize="characters"
       >
 
-        <video
-          id="movie"
-          playsinline
-          preload="metadata"
-        ></video>
+      <button
+        id="joinRoomBtn"
+        class="gate-primary"
+        type="button"
+      >
+        Join room
+      </button>
+
+    </div>
+
+  </div>
 
 
-        <!-- EMPTY MOVIE -->
+  <!-- =========================================
+       WATCH APP
+  ========================================== -->
+
+  <main
+    class="app hidden"
+    id="app"
+  >
+
+    <!-- TOP BAR -->
+
+    <header class="topbar">
+
+      <div class="brand">
+        Movie<span>Date</span>
+      </div>
+
+      <div class="room-info">
+        <span>ROOM</span>
+        <strong id="roomCode">----</strong>
+      </div>
+
+      <button
+        id="shareRoomBtn"
+        type="button"
+      >
+        Share
+      </button>
+
+      <button
+        id="exitBtn"
+        type="button"
+      >
+        Exit
+      </button>
+
+    </header>
+
+
+    <!-- =====================================
+         WATCH AREA
+    ====================================== -->
+
+    <section class="watch-layout">
+
+
+      <!-- MOVIE -->
+
+      <div class="movie-section">
 
         <div
-          class="empty-state"
-          id="emptyState"
+          class="movie-container"
+          id="movieTap"
         >
 
-          <button
-            class="add-movie"
-            id="chooseMovieBtn"
-            type="button"
-            aria-label="Add movie"
+          <video
+            id="movie"
+            playsinline
+            preload="metadata"
+          ></video>
+
+          <div
+            id="emptyState"
+            class="movie-empty"
           >
 
-            <svg viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            <div class="empty-title">
+              Choose a movie
+            </div>
 
-          </button>
+            <div class="empty-text">
+              Pick a movie from your device
+            </div>
 
-          <div class="empty-title">
-            ADD MOVIE
-          </div>
-
-          <div class="empty-subtitle">
-            Choose a video from your device
-          </div>
-
-        </div>
-
-
-        <input
-          id="movieFile"
-          type="file"
-          accept="video/mp4,video/webm,.mp4,.webm"
-          hidden
-        >
-
-
-        <!-- MOVIE INFO -->
-
-        <div
-          class="movie-badge"
-          id="syncBadge"
-        >
-          Ready
-        </div>
-
-
-        <!-- PLAY OVERLAY -->
-
-        <button
-          class="movie-tap"
-          id="movieTap"
-          type="button"
-          aria-label="Play movie"
-        >
-
-          <svg viewBox="0 0 24 24">
-            <path d="m9 6 9 6-9 6z"/>
-          </svg>
-
-        </button>
-
-
-        <!-- CONTROLS -->
-
-        <div
-          class="controls"
-          id="movieControls"
-        >
-
-          <div class="timeline-row">
-
-            <span id="currentTime">
-              00:00
-            </span>
+            <button
+              id="chooseMovieBtn"
+              type="button"
+            >
+              Choose movie
+            </button>
 
             <input
-              id="seek"
+              id="movieFile"
+              type="file"
+              accept="video/mp4,video/webm,.mp4,.webm"
+              hidden
+            >
+
+          </div>
+
+
+          <!-- MOVIE CONTROLS -->
+
+          <div class="movie-controls">
+
+            <button
+              id="playBtn"
+              type="button"
+            >
+              ▶
+            </button>
+
+            <input
+              id="seekBar"
               type="range"
               min="0"
               max="100"
               value="0"
-              step="0.1"
-              aria-label="Movie progress"
             >
 
-            <span id="duration">
+            <span id="movieTime">
               00:00
             </span>
 
-          </div>
-
-
-          <div class="control-row">
-
             <button
-              class="control-btn"
-              id="playBtn"
-              type="button"
-              aria-label="Play"
-            >
-
-              <svg viewBox="0 0 24 24">
-                <path d="m9 6 9 6-9 6z"/>
-              </svg>
-
-            </button>
-
-
-            <button
-              class="control-btn"
               id="muteBtn"
               type="button"
-              aria-label="Mute"
             >
-
-              <svg viewBox="0 0 24 24">
-                <path d="M4 10v4h4l5 4V6l-5 4H4Zm12-1.5a5 5 0 0 1 0 7M16 5a9 9 0 0 1 0 14"/>
-              </svg>
-
+              🔊
             </button>
 
-
-            <span class="control-spacer"></span>
-
-
             <button
-              class="control-btn"
-              id="changeMovie"
-              type="button"
-              aria-label="Change movie"
-            >
-
-              <svg viewBox="0 0 24 24">
-                <path d="M6 6h12v12H6zM9 10h6M9 14h6"/>
-              </svg>
-
-            </button>
-
-
-            <button
-              class="control-btn"
               id="fullscreenBtn"
               type="button"
-              aria-label="Fullscreen"
             >
-
-              <svg viewBox="0 0 24 24">
-                <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/>
-              </svg>
-
+              ⛶
             </button>
 
           </div>
@@ -328,40 +233,17 @@
 
       </div>
 
-    </section>
+
+      <!-- =====================================
+           PEOPLE / CHAT
+      ====================================== -->
+
+      <aside class="people">
 
 
-    <!-- =================================================
-         RIGHT SIDE
-         ================================================= -->
-
-    <aside class="side-panel">
-
-
-      <!-- PEOPLE -->
-
-      <div class="people">
-
-
-        <!-- YOU -->
+        <!-- CAMERA 1 -->
 
         <div class="person-card">
-
-          <div class="person-head">
-
-            <span>
-              You
-            </span>
-
-            <span
-              id="youStatus"
-              class="person-status"
-            >
-              ○ offline
-            </span>
-
-          </div>
-
 
           <div class="camera-box">
 
@@ -372,11 +254,8 @@
               playsinline
             ></video>
 
-            <div
-              class="camera-placeholder"
-              id="localPlaceholder"
-            >
-              CAMERA
+            <div class="person-name">
+              You
             </div>
 
           </div>
@@ -384,25 +263,9 @@
         </div>
 
 
-        <!-- PARTNER -->
+        <!-- CAMERA 2 -->
 
         <div class="person-card">
-
-          <div class="person-head">
-
-            <span>
-              Partner
-            </span>
-
-            <span
-              id="partnerStatus"
-              class="person-status"
-            >
-              ○ waiting
-            </span>
-
-          </div>
-
 
           <div class="camera-box">
 
@@ -412,149 +275,143 @@
               playsinline
             ></video>
 
-            <div
-              class="camera-placeholder"
-              id="remotePlaceholder"
-            >
-              WAITING
+            <div class="person-name">
+              Partner
             </div>
 
           </div>
 
         </div>
 
-      </div>
 
+        <!-- CHAT -->
 
-      <!-- CHAT -->
-
-      <div class="chat-panel">
-
-        <div
-          class="messages"
-          id="messages"
-        >
+        <div class="chat-panel">
 
           <div
-            class="system-message"
-            id="messageEmpty"
+            id="messages"
+            class="messages"
+          ></div>
+
+          <form
+            id="chatForm"
+            class="chat-form"
           >
-            Say hi.
-          </div>
+
+            <input
+              id="chatInput"
+              type="text"
+              placeholder="Message..."
+              autocomplete="off"
+            >
+
+            <button
+              id="sendChat"
+              type="submit"
+            >
+              Send
+            </button>
+
+          </form>
 
         </div>
 
+      </aside>
 
-        <form
-          class="chat-form"
-          id="chatForm"
-        >
-
-          <input
-            id="chatInput"
-            maxlength="240"
-            autocomplete="off"
-            placeholder="Message your partner..."
-          >
-
-          <button
-            id="sendChat"
-            type="submit"
-            aria-label="Send"
-          >
-
-            <svg viewBox="0 0 24 24">
-              <path d="m5 12 14-7-4 14-4-6-6-1Zm6 1 3 2"/>
-            </svg>
-
-          </button>
-
-        </form>
-
-      </div>
+    </section>
 
 
-      <!-- REACTIONS -->
+    <!-- =====================================
+         BOTTOM CONTROLS
+    ====================================== -->
 
-      <div
-        class="reaction-row"
-        id="reactionRow"
+    <footer class="bottom-controls">
+
+      <button
+        id="micBtn"
+        type="button"
       >
+        🎙
+      </button>
 
-        <button type="button" data-reaction="❤️">❤️</button>
-        <button type="button" data-reaction="🥰">🥰</button>
-        <button type="button" data-reaction="😘">😘</button>
-        <button type="button" data-reaction="😍">😍</button>
-        <button type="button" data-reaction="🥹">🥹</button>
-        <button type="button" data-reaction="🔥">🔥</button>
-        <button type="button" data-reaction="😂">😂</button>
-        <button type="button" data-reaction="✨">✨</button>
+      <button
+        id="cameraBtn"
+        type="button"
+      >
+        📷
+      </button>
+
+      <button
+        id="shareBtn"
+        type="button"
+      >
+        🖥
+      </button>
+
+      <div class="reactions">
+
+        <button
+          class="reaction-btn"
+          data-emoji="❤️"
+          type="button"
+        >
+          ❤️
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="🥰"
+          type="button"
+        >
+          🥰
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="😘"
+          type="button"
+        >
+          😘
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="😂"
+          type="button"
+        >
+          😂
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="🔥"
+          type="button"
+        >
+          🔥
+        </button>
 
       </div>
 
+    </footer>
 
-      <!-- BOTTOM CONTROLS -->
-
-      <div class="bottom-controls">
-
-        <button
-          id="micButton"
-          type="button"
-          aria-label="Microphone"
-        >
-
-          <svg viewBox="0 0 24 24">
-            <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Zm-6 8a6 6 0 0 0 12 0M12 18v3M8 21h8"/>
-          </svg>
-
-        </button>
+  </main>
 
 
-        <button
-          id="cameraButton"
-          type="button"
-          aria-label="Camera"
-        >
+  <!-- TOAST -->
 
-          <svg viewBox="0 0 24 24">
-            <path d="M4 7h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 3 5-3v10l-5-3z"/>
-          </svg>
-
-        </button>
+  <div
+    id="toast"
+    class="toast"
+  ></div>
 
 
-        <button
-          id="shareBtn"
-          type="button"
-          aria-label="Share room"
-        >
+  <!-- SOCKET.IO -->
 
-          <svg viewBox="0 0 24 24">
-            <path d="M12 16V3m0 0-4 4m4-4 4 4M5 12v7h14v-7"/>
-          </svg>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 
-        </button>
+  <!-- APP -->
 
-      </div>
-
-    </aside>
-
-  </section>
-
-</main>
-
-
-<!-- TOAST -->
-
-<div
-  id="toast"
-  class="toast"
-></div>
-
-
-<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-
-<script src="./app.js"></script>
+  <script src="./app.js"></script>
 
 </body>
 </html>
