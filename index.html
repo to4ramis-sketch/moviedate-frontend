@@ -1,135 +1,100 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#09090b" />
-  <title>MovieDate — Watch Together</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08080a">
+  <title>MovieDate</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <main class="app">
-    <header class="topbar">
-      <div class="brand">Movie<span>Date</span></div>
-      <div class="room">
-        <span id="roomStatus" class="dot"></span>
-        <span>Room <b id="roomCode">—</b></span>
-        <button id="copyRoom" class="ghost">Copy</button>
+<main class="app">
+  <header class="topbar">
+    <div class="brand">Movie<span>Date</span></div>
+    <button class="room-pill" id="roomPill" type="button" aria-label="Copy room link">
+      <span id="roomStatus" class="status-dot"></span><span id="roomCode">—</span>
+    </button>
+    <button class="icon-btn top-exit" id="exitBtn" type="button" aria-label="Leave room" title="Leave room">
+      <svg viewBox="0 0 24 24"><path d="M9 6H5.8A1.8 1.8 0 0 0 4 7.8v8.4A1.8 1.8 0 0 0 5.8 18H9M14 16l4-4-4-4M18 12H9"/></svg>
+    </button>
+  </header>
+
+  <section class="watch-layout">
+    <section class="movie-panel">
+      <div class="video-wrap" id="videoWrap">
+        <video id="movie" playsinline></video>
+        <div class="empty-state" id="emptyState">
+          <button class="add-movie" id="chooseMovieBtn" type="button" aria-label="Choose movie" title="Choose movie">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <input id="movieFile" type="file" accept="video/*" hidden>
+        </div>
+        <div class="movie-badge" id="syncBadge">offline</div>
+        <button class="movie-tap" id="movieTap" type="button" aria-label="Play movie" title="Play">
+          <svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6z"/></svg>
+        </button>
+        <div class="controls" id="movieControls">
+          <div class="timeline-row">
+            <span id="currentTime">00:00</span>
+            <input id="seek" type="range" min="0" max="100" value="0" step="0.1" aria-label="Movie progress">
+            <span id="duration">00:00</span>
+          </div>
+          <div class="control-row">
+            <button class="control-btn" id="playBtn" type="button" aria-label="Play" title="Play"><svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6z"/></svg></button>
+            <button class="control-btn" id="muteBtn" type="button" aria-label="Mute" title="Mute"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6l-5 4H4Zm12-1.5a5 5 0 0 1 0 7M16 5a9 9 0 0 1 0 14"/></svg></button>
+            <span class="control-spacer"></span>
+            <button class="control-btn" id="changeMovie" type="button" aria-label="Change movie" title="Change movie"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6zM9 10h6M9 14h6"/></svg></button>
+            <button class="control-btn" id="fullscreenBtn" type="button" aria-label="Fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg></button>
+          </div>
+        </div>
       </div>
-      <div class="top-actions">
-        <button id="newRoom" class="ghost">New room</button>
-      </div>
-    </header>
-
-    <section class="watch-layout">
-      <section class="movie-panel">
-        <div class="video-wrap" id="videoWrap">
-          <video id="movie" playsinline></video>
-          <div class="empty-state" id="emptyState">
-            <div class="film-icon">▶</div>
-            <h1>Pick a movie</h1>
-            <p>The host selects a local video. It is streamed directly to your partner.</p>
-            <label class="primary-btn file-btn">
-              Choose video
-              <input id="movieFile" type="file" accept="video/*" />
-            </label>
-          </div>
-
-          <div class="video-overlay">
-            <div class="movie-title" id="movieTitle">MovieDate</div>
-            <div class="sync-badge" id="syncBadge">Not connected</div>
-          </div>
-
-          <div class="controls">
-            <div class="timeline-row">
-              <span id="currentTime">00:00</span>
-              <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
-              <span id="duration">00:00</span>
-            </div>
-            <div class="control-row">
-              <button id="playBtn" class="round big">▶</button>
-              <button id="muteBtn" class="round">🔊</button>
-              <button id="fullscreenBtn" class="round">⛶</button>
-              <button id="shareBtn" class="round">↗</button>
-              <div class="control-spacer"></div>
-              <button id="changeMovie" class="small-control">Change movie</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="movie-meta">
-          <div>
-            <div class="eyebrow">WATCH TOGETHER</div>
-            <h2 id="movieName">No movie selected</h2>
-          </div>
-          <div class="host-note" id="hostNote">Anyone can join. The host controls the movie.</div>
-        </div>
-      </section>
-
-      <aside class="side-panel">
-        <div class="people">
-          <div class="person-card">
-            <div class="person-head">
-              <span>You</span>
-              <span id="youStatus">● ready</span>
-            </div>
-            <div class="camera-box">
-              <video id="localVideo" autoplay muted playsinline></video>
-              <div class="camera-placeholder" id="localPlaceholder">YOU</div>
-            </div>
-          </div>
-
-          <div class="person-card">
-            <div class="person-head">
-              <span>Partner</span>
-              <span id="partnerStatus">○ waiting</span>
-            </div>
-            <div class="camera-box">
-              <video id="remoteVideo" autoplay playsinline></video>
-              <div class="camera-placeholder" id="remotePlaceholder">PARTNER</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="chat-panel">
-          <div class="chat-head">
-            <span>Chat</span>
-            <span id="connectionText">Connecting…</span>
-          </div>
-          <div id="messages" class="messages">
-            <div class="system-message">Create a room or open a shared room link.</div>
-          </div>
-          <form id="chatForm" class="chat-form">
-            <input id="chatInput" maxlength="240" autocomplete="off" placeholder="Say something..." />
-            <button>Send</button>
-          </form>
-        </div>
-
-        <div class="reaction-row" id="reactionRow">
-          <button data-reaction="❤️">❤️</button>
-          <button data-reaction="🥰">🥰</button>
-          <button data-reaction="😘">😘</button>
-          <button data-reaction="😍">😍</button>
-          <button data-reaction="🥹">🥹</button>
-          <button data-reaction="🔥">🔥</button>
-          <button data-reaction="😂">😂</button>
-          <button data-reaction="✨">✨</button>
-        </div>
-
-        <div class="bottom-controls">
-          <button id="micBtn">🎙 <span>Mic</span></button>
-          <button id="cameraBtn">▣ <span>Camera</span></button>
-          <button id="hostBtn" class="accent">Create room</button>
-          <button id="moreBtn">••• <span>More</span></button>
-        </div>
-      </aside>
     </section>
 
-    <div id="rotate" class="rotate-warning">Rotate your phone →<small>MovieDate is designed for landscape.</small></div>
-    <div id="toast" class="toast"></div>
-  </main>
+    <aside class="side-panel">
+      <div class="people">
+        <div class="person-card"><div class="person-head"><span>You</span><span id="youStatus">○</span></div><div class="camera-box"><video id="localVideo" autoplay muted playsinline></video><div class="camera-placeholder" id="localPlaceholder">YOU</div></div></div>
+        <div class="person-card"><div class="person-head"><span>Partner</span><span id="partnerStatus">○</span></div><div class="camera-box"><video id="remoteVideo" autoplay playsinline></video><div class="camera-placeholder" id="remotePlaceholder">PARTNER</div></div></div>
+      </div>
 
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-  <script src="./app.js"></script>
+      <div class="chat-panel">
+        <div class="messages" id="messages"><div class="system-message" id="messageEmpty">Say hi.</div></div>
+        <form class="chat-form" id="chatForm">
+          <input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message">
+          <button type="submit" aria-label="Send" title="Send"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-4-6-6-1Zm6 1 3 2"/></svg></button>
+        </form>
+      </div>
+
+      <div class="reaction-row" id="reactionRow">
+        <button type="button" data-reaction="❤️" aria-label="Love">❤️</button><button type="button" data-reaction="🥰" aria-label="Adore">🥰</button><button type="button" data-reaction="😘" aria-label="Kiss">😘</button><button type="button" data-reaction="😍" aria-label="Love this">😍</button><button type="button" data-reaction="🥹" aria-label="Emotional">🥹</button><button type="button" data-reaction="🔥" aria-label="Hot">🔥</button><button type="button" data-reaction="😂" aria-label="Funny">😂</button><button type="button" data-reaction="✨" aria-label="Magical">✨</button>
+      </div>
+
+      <div class="bottom-controls">
+        <button id="micBtn" type="button" aria-label="Microphone" title="Microphone"><svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Zm-6 8a6 6 0 0 0 12 0M12 18v3M8 21h8"/></svg></button>
+        <button id="cameraBtn" type="button" aria-label="Camera" title="Camera"><svg viewBox="0 0 24 24"><path d="M4 7h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 3 5-3v10l-5-3z"/></svg></button>
+        <button id="shareBtn" type="button" aria-label="Share room" title="Share room"><svg viewBox="0 0 24 24"><path d="M12 16V3m0 0-4 4m4-4 4 4M5 12v7h14v-7"/></svg></button>
+      </div>
+    </aside>
+  </section>
+
+  <div class="room-gate" id="roomGate">
+    <div class="gate-card">
+      <div class="gate-logo">Movie<span>Date</span></div>
+      <button class="gate-primary" id="createRoomBtn" type="button">Create room</button>
+      <button class="gate-secondary" id="joinPromptBtn" type="button">Join with code</button>
+    </div>
+  </div>
+
+  <div class="join-sheet" id="joinSheet" hidden>
+    <div class="sheet-card">
+      <button class="sheet-close" id="closeJoinBtn" type="button" aria-label="Close">×</button>
+      <input id="roomCodeInput" maxlength="5" inputmode="text" autocomplete="off" placeholder="ROOM CODE">
+      <button class="gate-primary" id="joinRoomBtn" type="button">Join</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+</main>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>
