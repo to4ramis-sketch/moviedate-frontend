@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090b" />
+  <title>MovieDate — Watch Together</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">Movie<span>Date</span></div>
+      <div class="room">
+        <span id="roomStatus" class="dot"></span>
+        <span>Room <b id="roomCode">—</b></span>
+        <button id="copyRoom" class="ghost">Copy</button>
+      </div>
+      <div class="top-actions">
+        <button id="newRoom" class="ghost">New room</button>
+      </div>
+    </header>
+
+    <section class="watch-layout">
+      <section class="movie-panel">
+        <div class="video-wrap" id="videoWrap">
+          <video id="movie" playsinline></video>
+          <div class="empty-state" id="emptyState">
+            <div class="film-icon">▶</div>
+            <h1>Pick a movie</h1>
+            <p>The host selects a local video. It is streamed directly to your partner.</p>
+            <label class="primary-btn file-btn">
+              Choose video
+              <input id="movieFile" type="file" accept="video/*" />
+            </label>
+          </div>
+
+          <div class="video-overlay">
+            <div class="movie-title" id="movieTitle">MovieDate</div>
+            <div class="sync-badge" id="syncBadge">Not connected</div>
+          </div>
+
+          <div class="controls">
+            <div class="timeline-row">
+              <span id="currentTime">00:00</span>
+              <input id="seek" type="range" min="0" max="100" value="0" step="0.1" />
+              <span id="duration">00:00</span>
+            </div>
+            <div class="control-row">
+              <button id="playBtn" class="round big">▶</button>
+              <button id="muteBtn" class="round">🔊</button>
+              <button id="fullscreenBtn" class="round">⛶</button>
+              <button id="shareBtn" class="round">↗</button>
+              <div class="control-spacer"></div>
+              <button id="changeMovie" class="small-control">Change movie</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="movie-meta">
+          <div>
+            <div class="eyebrow">WATCH TOGETHER</div>
+            <h2 id="movieName">No movie selected</h2>
+          </div>
+          <div class="host-note" id="hostNote">Anyone can join. The host controls the movie.</div>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="people">
+          <div class="person-card">
+            <div class="person-head">
+              <span>You</span>
+              <span id="youStatus">● ready</span>
+            </div>
+            <div class="camera-box">
+              <video id="localVideo" autoplay muted playsinline></video>
+              <div class="camera-placeholder" id="localPlaceholder">YOU</div>
+            </div>
+          </div>
+
+          <div class="person-card">
+            <div class="person-head">
+              <span>Partner</span>
+              <span id="partnerStatus">○ waiting</span>
+            </div>
+            <div class="camera-box">
+              <video id="remoteVideo" autoplay playsinline></video>
+              <div class="camera-placeholder" id="remotePlaceholder">PARTNER</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="chat-head">
+            <span>Chat</span>
+            <span id="connectionText">Connecting…</span>
+          </div>
+          <div id="messages" class="messages">
+            <div class="system-message">Create a room or open a shared room link.</div>
+          </div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" maxlength="240" autocomplete="off" placeholder="Say something..." />
+            <button>Send</button>
+          </form>
+        </div>
+
+        <div class="reaction-row" id="reactionRow">
+          <button data-reaction="❤️">❤️</button>
+          <button data-reaction="🥰">🥰</button>
+          <button data-reaction="😘">😘</button>
+          <button data-reaction="😍">😍</button>
+          <button data-reaction="🥹">🥹</button>
+          <button data-reaction="🔥">🔥</button>
+          <button data-reaction="😂">😂</button>
+          <button data-reaction="✨">✨</button>
+        </div>
+
+        <div class="bottom-controls">
+          <button id="micBtn">🎙 <span>Mic</span></button>
+          <button id="cameraBtn">▣ <span>Camera</span></button>
+          <button id="hostBtn" class="accent">Create room</button>
+          <button id="moreBtn">••• <span>More</span></button>
+        </div>
+      </aside>
+    </section>
+
+    <div id="rotate" class="rotate-warning">Rotate your phone →<small>MovieDate is designed for landscape.</small></div>
+    <div id="toast" class="toast"></div>
+  </main>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
