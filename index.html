@@ -17,9 +17,95 @@
 
 <body>
 
-<main class="app">
+<!-- =====================================================
+     ROOM GATE
+     IMPORTANT: OUTSIDE THE APP
+     ===================================================== -->
+
+<div
+  class="room-gate"
+  id="roomGate"
+>
+
+  <div class="gate-card">
+
+    <div class="gate-logo">
+      Movie<span>Date</span>
+    </div>
+
+    <button
+      class="gate-primary"
+      id="createRoomBtn"
+      type="button"
+    >
+      Create room
+    </button>
+
+    <button
+      class="gate-secondary"
+      id="joinPromptBtn"
+      type="button"
+    >
+      Join with code
+    </button>
+
+  </div>
+
+</div>
+
+
+<!-- =====================================================
+     JOIN SHEET
+     ===================================================== -->
+
+<div
+  class="join-sheet"
+  id="joinSheet"
+  hidden
+>
+
+  <div class="sheet-card">
+
+    <button
+      class="sheet-close"
+      id="closeJoinBtn"
+      type="button"
+    >
+      ×
+    </button>
+
+    <input
+      id="roomCodeInput"
+      maxlength="12"
+      inputmode="text"
+      autocomplete="off"
+      placeholder="ROOM CODE"
+    >
+
+    <button
+      class="gate-primary"
+      id="joinRoomBtn"
+      type="button"
+    >
+      Join
+    </button>
+
+  </div>
+
+</div>
+
+
+<!-- =====================================================
+     MAIN APP
+     ===================================================== -->
+
+<main
+  class="app hidden"
+  id="app"
+>
 
   <!-- TOP BAR -->
+
   <header class="topbar">
 
     <div class="brand">
@@ -32,8 +118,14 @@
       type="button"
       aria-label="Share room"
     >
-      <span id="roomStatus" class="status-dot"></span>
+
+      <span
+        id="roomStatus"
+        class="status-dot"
+      ></span>
+
       <span id="roomCode">—</span>
+
     </button>
 
     <button
@@ -42,18 +134,25 @@
       type="button"
       aria-label="Leave room"
     >
+
       <svg viewBox="0 0 24 24">
         <path d="M9 6H5.8A1.8 1.8 0 0 0 4 7.8v8.4A1.8 1.8 0 0 0 5.8 18H9M14 16l4-4-4-4M18 12H9"/>
       </svg>
+
     </button>
 
   </header>
 
 
-  <!-- MAIN WATCH AREA -->
+  <!-- =================================================
+       MAIN WATCH AREA
+       ================================================= -->
+
   <section class="watch-layout">
 
+
     <!-- MOVIE -->
+
     <section class="movie-panel">
 
       <div
@@ -68,7 +167,8 @@
         ></video>
 
 
-        <!-- EMPTY MOVIE STATE -->
+        <!-- EMPTY MOVIE -->
+
         <div
           class="empty-state"
           id="emptyState"
@@ -98,17 +198,16 @@
         </div>
 
 
-        <!-- IMPORTANT:
-             hidden file input -->
         <input
           id="movieFile"
           type="file"
-          accept="video/*,.mp4,.webm,.mov,.mkv"
+          accept="video/mp4,video/webm,.mp4,.webm"
           hidden
         >
 
 
         <!-- MOVIE INFO -->
+
         <div
           class="movie-badge"
           id="syncBadge"
@@ -118,6 +217,7 @@
 
 
         <!-- PLAY OVERLAY -->
+
         <button
           class="movie-tap"
           id="movieTap"
@@ -132,7 +232,8 @@
         </button>
 
 
-        <!-- MOVIE CONTROLS -->
+        <!-- CONTROLS -->
+
         <div
           class="controls"
           id="movieControls"
@@ -230,15 +331,20 @@
     </section>
 
 
-    <!-- RIGHT SIDE -->
+    <!-- =================================================
+         RIGHT SIDE
+         ================================================= -->
+
     <aside class="side-panel">
 
 
       <!-- PEOPLE -->
+
       <div class="people">
 
 
         <!-- YOU -->
+
         <div class="person-card">
 
           <div class="person-head">
@@ -279,6 +385,7 @@
 
 
         <!-- PARTNER -->
+
         <div class="person-card">
 
           <div class="person-head">
@@ -320,6 +427,7 @@
 
 
       <!-- CHAT -->
+
       <div class="chat-panel">
 
         <div
@@ -350,6 +458,7 @@
           >
 
           <button
+            id="sendChat"
             type="submit"
             aria-label="Send"
           >
@@ -366,6 +475,7 @@
 
 
       <!-- REACTIONS -->
+
       <div
         class="reaction-row"
         id="reactionRow"
@@ -384,10 +494,11 @@
 
 
       <!-- BOTTOM CONTROLS -->
+
       <div class="bottom-controls">
 
         <button
-          id="micBtn"
+          id="micButton"
           type="button"
           aria-label="Microphone"
         >
@@ -400,7 +511,7 @@
 
 
         <button
-          id="cameraBtn"
+          id="cameraButton"
           type="button"
           aria-label="Camera"
         >
@@ -430,85 +541,15 @@
 
   </section>
 
-
-  <!-- ROOM GATE -->
-  <div
-    class="room-gate"
-    id="roomGate"
-  >
-
-    <div class="gate-card">
-
-      <div class="gate-logo">
-        Movie<span>Date</span>
-      </div>
-
-      <button
-        class="gate-primary"
-        id="createRoomBtn"
-        type="button"
-      >
-        Create room
-      </button>
-
-      <button
-        class="gate-secondary"
-        id="joinPromptBtn"
-        type="button"
-      >
-        Join with code
-      </button>
-
-    </div>
-
-  </div>
-
-
-  <!-- JOIN -->
-  <div
-    class="join-sheet"
-    id="joinSheet"
-    hidden
-  >
-
-    <div class="sheet-card">
-
-      <button
-        class="sheet-close"
-        id="closeJoinBtn"
-        type="button"
-      >
-        ×
-      </button>
-
-      <input
-        id="roomCodeInput"
-        maxlength="12"
-        inputmode="text"
-        autocomplete="off"
-        placeholder="ROOM CODE"
-      >
-
-      <button
-        class="gate-primary"
-        id="joinRoomBtn"
-        type="button"
-      >
-        Join
-      </button>
-
-    </div>
-
-  </div>
-
-
-  <!-- TOAST -->
-  <div
-    id="toast"
-    class="toast"
-  ></div>
-
 </main>
+
+
+<!-- TOAST -->
+
+<div
+  id="toast"
+  class="toast"
+></div>
 
 
 <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
