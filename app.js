@@ -6,6 +6,7 @@ let roomId = (params.get("room") || "").toUpperCase();
 let isHost = false;
 let hasJoinedRoom = false;
 let localStream = null;
+let cameraStartPromise = null;
 let cameraPeer = null;
 let moviePeer = null;
 let partnerSocketId = null;
@@ -36,9 +37,8 @@ if (movieFile) {
 
 // Persistent host-only movie changer in the top bar.
 function ensureChangeMovieButton() {
-  const header = document.querySelector(".topbar");
-  const roomInfo = document.querySelector(".room-info");
-  if (!header || !roomInfo || $("changeMovieTopBtn")) return;
+  const actions = document.querySelector(".top-actions");
+  if (!actions || $("changeMovieTopBtn")) return;
 
   const button = document.createElement("button");
   button.id = "changeMovieTopBtn";
@@ -46,6 +46,7 @@ function ensureChangeMovieButton() {
   button.className = "top-button change-movie-button";
   button.textContent = "Change movie";
   button.title = "Choose a different movie";
+  button.setAttribute("aria-label", "Change movie");
   button.style.display = "none";
   button.addEventListener("click", () => {
     if (!isHost) {
@@ -55,7 +56,14 @@ function ensureChangeMovieButton() {
     movieFile?.click();
   });
 
-  roomInfo.insertAdjacentElement("afterend", button);
+  // Keep it aligned with Share and Exit, rather than floating between the
+  // room code and action group. Insert it immediately before Share.
+  const shareButton = $("shareRoomBtn");
+  if (shareButton && shareButton.parentElement === actions) {
+    actions.insertBefore(button, shareButton);
+  } else {
+    actions.prepend(button);
+  }
 }
 
 function updateChangeMovieButton() {
@@ -118,12 +126,15 @@ function addMessage(text, me = false) {
 function showReaction(emoji) {
   const layer = $("reactionLayer") || document.body;
   const el = document.createElement("div");
-  el.className = "float-reaction";
+  // Match the stylesheet class and start reactions at the visual centre.
+  el.className = "floating-reaction";
   el.textContent = emoji;
-  el.style.left = `${25 + Math.random() * 55}vw`;
-  el.style.top = `${55 + Math.random() * 20}vh`;
+  el.setAttribute("aria-hidden", "true");
+  el.style.left = "50%";
+  el.style.top = "50%";
+  el.style.setProperty("--drift", `${Math.round((Math.random() - 0.5) * 90)}px`);
   layer.appendChild(el);
-  setTimeout(() => el.remove(), 1600);
+  setTimeout(() => el.remove(), 1850);
 }
 
 function openApp() {
@@ -151,43 +162,64 @@ function closeJoinSheet() {
 
 async function startCamera() {
   if (localStream) return localStream;
+  // Prevent the room-join path and an incoming WebRTC offer from requesting
+  // camera/microphone simultaneously. Both callers await the same stream.
+  if (cameraStartPromise) return cameraStartPromise;
   if (!navigator.mediaDevices?.getUserMedia) {
     toast("Camera is not supported in this browser");
     return null;
   }
 
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
-      audio: true
-    });
+  cameraStartPromise = (async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: true
+      });
+      localStream = stream;
 
-    if (localVideo) {
-      localVideo.srcObject = localStream;
-      localVideo.muted = true;
-      localVideo.playsInline = true;
-      localVideo.autoplay = true;
-      localVideo.play().catch(() => {});
-    }
+      if (localVideo) {
+        localVideo.srcObject = localStream;
+        localVideo.muted = true;
+        localVideo.playsInline = true;
+        localVideo.autoplay = true;
+        localVideo.play().catch(() => {});
+      }
 
-    if ($("localPlaceholder")) $("localPlaceholder").style.display = "none";
-    setText("localMicState", "🎙");
+      if ($("localPlaceholder")) $("localPlaceholder").style.display = "none";
+      setText("localMicState", "🎙");
 
-    if (cameraPeer) {
-      for (const track of localStream.getTracks()) {
-        if (!cameraPeer.getSenders().some(s => s.track === track)) {
-          cameraPeer.addTrack(track, localStream);
+      // If a peer already exists, attach the newly available tracks and make
+      // sure the corresponding media directions permit sending as well as
+      // receiving. The offer handler below normally waits for this stream first.
+      if (cameraPeer) {
+        for (const track of localStream.getTracks()) {
+          const sender = cameraPeer.getSenders().find(s => s.track?.kind === track.kind);
+          if (sender) {
+            if (sender.track !== track) await sender.replaceTrack(track);
+          } else {
+            cameraPeer.addTrack(track, localStream);
+          }
+        }
+        for (const transceiver of cameraPeer.getTransceivers()) {
+          if (transceiver.sender.track && transceiver.direction === "recvonly") {
+            transceiver.direction = "sendrecv";
+          }
         }
       }
-    }
 
-    return localStream;
-  } catch (error) {
-    console.error("CAMERA ERROR:", error);
-    toast("Camera/mic permission not granted");
-    setText("localMicState", "○");
-    return null;
-  }
+      return localStream;
+    } catch (error) {
+      console.error("CAMERA ERROR:", error);
+      toast("Camera/mic permission not granted");
+      setText("localMicState", "○");
+      return null;
+    } finally {
+      cameraStartPromise = null;
+    }
+  })();
+
+  return cameraStartPromise;
 }
 
 async function createRoom() {
@@ -373,6 +405,12 @@ async function startMovieStream() {
 
 async function handleCameraSignal(msg) {
   if (!msg) return;
+
+  // The receiver can get the host's offer immediately after joining. Ensure
+  // local camera/mic tracks are ready BEFORE creating the answer peer; otherwise
+  // the answer may advertise recvonly media and the host will never get the
+  // receiver's camera/audio.
+  if (!localStream) await startCamera();
   const pc = cameraPeer || createCameraPeer(false);
 
   if (msg.type === "offer") {
