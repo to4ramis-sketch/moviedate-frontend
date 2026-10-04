@@ -1,1512 +1,643 @@
-/* ============================================================
-   MOVIEDATE
-   FINAL FRONTEND STYLES
-   ============================================================ */
-
-:root {
-  --bg: #08080a;
-  --panel: #111114;
-  --panel-2: #17171b;
-  --panel-3: #1c1c21;
-
-  --text: #f6f5f4;
-  --muted: #8d8b91;
-  --muted-2: #66656b;
-
-  --accent: #ff5278;
-  --accent-soft: #ff7f9b;
-  --accent-dark: #b72f50;
-
-  --border: rgba(255,255,255,0.09);
-  --border-soft: rgba(255,255,255,0.06);
-
-  --radius-lg: 22px;
-  --radius-md: 16px;
-  --radius-sm: 11px;
-
-  --topbar-height: 58px;
-  --bottom-height: 64px;
-
-  font-family:
-    Inter,
-    ui-sans-serif,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
-}
-
-
-/* ============================================================
-   RESET
-   ============================================================ */
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-button {
-  border: 0;
-  cursor: pointer;
-}
-
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.hidden {
-  display: none !important;
-}
-
-
-/* ============================================================
-   ROOM GATE
-   ============================================================ */
-
-.room-gate {
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background:
-    radial-gradient(
-      circle at 50% 42%,
-      rgba(255,82,120,0.10),
-      transparent 34%
-    ),
-    #08080a;
-
-  overflow: hidden;
-}
-
-.gate-glow {
-  position: absolute;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.16;
-  pointer-events: none;
-}
-
-.gate-glow-one {
-  background: #ff5278;
-  top: -140px;
-  right: -100px;
-}
-
-.gate-glow-two {
-  background: #714bff;
-  bottom: -180px;
-  left: -100px;
-}
-
-.gate-card {
-  position: relative;
-  z-index: 2;
-
-  width: min(420px, calc(100vw - 36px));
-
-  padding: 42px 34px 30px;
-
-  border: 1px solid var(--border);
-  border-radius: 28px;
-
-  background: rgba(17,17,20,0.88);
-
-  box-shadow:
-    0 30px 100px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.03);
-
-  text-align: center;
-
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-}
-
-.gate-brand,
-.brand {
-  font-size: 25px;
-  font-weight: 700;
-  letter-spacing: -0.045em;
-}
-
-.gate-brand span,
-.brand span {
-  color: var(--accent);
-}
-
-.gate-tagline {
-  margin: 9px 0 32px;
+<!DOCTYPE html>
+<html lang="en">
 
-  color: var(--muted);
-  font-size: 14px;
-}
+<head>
+  <meta charset="UTF-8">
 
-.gate-actions {
-  display: grid;
-  gap: 10px;
-}
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
 
-.gate-primary,
-.gate-secondary {
-  width: 100%;
-  min-height: 50px;
+  <meta
+    name="theme-color"
+    content="#09090b"
+  >
 
-  border-radius: 14px;
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
 
-  font-size: 14px;
-  font-weight: 650;
+  <title>MovieDate</title>
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+  <!-- =========================================================
+       ROOM GATE
+       ========================================================= -->
+
+  <section id="roomGate" class="room-gate">
+
+    <div class="gate-glow gate-glow-one"></div>
+    <div class="gate-glow gate-glow-two"></div>
+
+    <div class="gate-card">
 
-  transition:
-    transform 160ms ease,
-    opacity 160ms ease,
-    background 160ms ease;
-}
+      <div class="gate-brand">
+        Movie<span>Date</span>
+      </div>
 
-.gate-primary {
-  background: var(--text);
-  color: #0a0a0c;
-}
+      <p class="gate-tagline">
+        Watch together. Anywhere.
+      </p>
+
+      <div class="gate-actions">
 
-.gate-secondary {
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.045);
-  color: var(--text);
-}
+        <button
+          id="createRoomBtn"
+          class="gate-primary"
+          type="button"
+        >
+          Create a room
+        </button>
 
-.gate-primary:hover,
-.gate-secondary:hover {
-  transform: translateY(-1px);
-}
+        <button
+          id="joinPromptBtn"
+          class="gate-secondary"
+          type="button"
+        >
+          Join with code
+        </button>
 
-.gate-primary:active,
-.gate-secondary:active {
-  transform: scale(0.98);
-}
+      </div>
 
-.gate-note {
-  margin-top: 22px;
+      <div class="gate-note">
+        Two people · One movie · Together
+      </div>
 
-  color: var(--muted-2);
+    </div>
 
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+  </section>
 
 
-/* ============================================================
-   JOIN SHEET
-   ============================================================ */
+  <!-- =========================================================
+       JOIN SHEET
+       ========================================================= -->
 
-.join-sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
+  <section
+    id="joinSheet"
+    class="join-sheet hidden"
+    aria-hidden="true"
+  >
+
+    <div
+      id="joinBackdrop"
+      class="join-backdrop"
+    ></div>
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    <div class="join-card">
 
-.join-backdrop {
-  position: absolute;
-  inset: 0;
+      <button
+        id="closeJoinBtn"
+        class="join-close"
+        type="button"
+        aria-label="Close"
+      >
+        ×
+      </button>
 
-  background: rgba(0,0,0,0.72);
+      <div class="join-eyebrow">
+        MOVIEDATE
+      </div>
 
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
+      <h2>
+        Join a room
+      </h2>
 
-.join-card {
-  position: relative;
-  z-index: 2;
+      <p>
+        Enter the room code from your partner.
+      </p>
 
-  width: min(400px, calc(100vw - 36px));
+      <input
+        id="roomCodeInput"
+        class="room-code-input"
+        type="text"
+        maxlength="12"
+        placeholder="ROOM CODE"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+      >
 
-  padding: 30px;
+      <button
+        id="joinRoomBtn"
+        class="gate-primary join-button"
+        type="button"
+      >
+        Join room
+      </button>
 
-  border: 1px solid var(--border);
-  border-radius: 24px;
+    </div>
 
-  background: #131316;
+  </section>
 
-  box-shadow: 0 30px 90px rgba(0,0,0,0.6);
-}
 
-.join-close {
-  position: absolute;
-  top: 13px;
-  right: 14px;
+  <!-- =========================================================
+       MAIN APP
+       ========================================================= -->
 
-  width: 34px;
-  height: 34px;
+  <main
+    id="app"
+    class="app hidden"
+  >
 
-  border-radius: 50%;
+    <!-- =======================================================
+         TOP BAR
+         ======================================================= -->
 
-  background: rgba(255,255,255,0.06);
-  color: var(--muted);
+    <header class="topbar">
 
-  font-size: 22px;
-  line-height: 1;
-}
+      <div class="brand">
+        Movie<span>Date</span>
+      </div>
 
-.join-eyebrow {
-  color: var(--accent);
+      <div class="room-info">
 
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-}
+        <span class="room-label">
+          ROOM
+        </span>
 
-.join-card h2 {
-  margin: 9px 0 7px;
+        <strong id="roomCode">
+          ------
+        </strong>
 
-  font-size: 28px;
-  letter-spacing: -0.04em;
-}
+      </div>
 
-.join-card p {
-  margin: 0 0 22px;
+      <div class="top-actions">
 
-  color: var(--muted);
-  font-size: 13px;
-}
+        <button
+          id="shareRoomBtn"
+          class="top-button"
+          type="button"
+        >
+          <span class="button-icon">↗</span>
+          <span>Share</span>
+        </button>
 
-.room-code-input {
-  width: 100%;
-  height: 54px;
+        <button
+          id="exitBtn"
+          class="top-button exit-button"
+          type="button"
+        >
+          Exit
+        </button>
 
-  padding: 0 16px;
+      </div>
 
-  border: 1px solid var(--border);
-  border-radius: 13px;
+    </header>
 
-  outline: 0;
 
-  background: #0c0c0f;
-  color: var(--text);
+    <!-- =======================================================
+         WATCH AREA
+         ======================================================= -->
 
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+    <section class="watch-layout">
 
-  text-align: center;
-}
 
-.room-code-input:focus {
-  border-color: rgba(255,82,120,0.6);
-}
+      <!-- =====================================================
+           MOVIE
+           ===================================================== -->
 
-.join-button {
-  margin-top: 11px;
-}
+      <section class="movie-section">
 
+        <div
+          id="movieTap"
+          class="movie-container"
+        >
 
-/* ============================================================
-   APP
-   ============================================================ */
+          <video
+            id="movie"
+            class="movie"
+            playsinline
+            preload="metadata"
+          ></video>
 
-.app {
-  position: relative;
 
-  display: flex;
-  flex-direction: column;
+          <!-- Empty movie state -->
 
-  width: 100%;
-  height: 100dvh;
+          <div
+            id="emptyState"
+            class="movie-empty"
+          >
+
+            <div class="movie-empty-inner">
+
+              <div class="movie-icon">
+                ▶
+              </div>
+
+              <div class="empty-title">
+                Choose a movie
+              </div>
+
+              <div class="empty-text">
+                Pick a movie from your device
+              </div>
+
+              <button
+                id="chooseMovieBtn"
+                class="choose-movie-button"
+                type="button"
+              >
+                Choose movie
+              </button>
+
+              <input
+                id="movieFile"
+                type="file"
+                accept="video/mp4,video/webm,.mp4,.webm"
+                hidden
+              >
+
+            </div>
+
+          </div>
+
+
+          <!-- Movie loading -->
 
-  background: var(--bg);
+          <div
+            id="movieLoading"
+            class="movie-loading hidden"
+          >
+            <div class="loading-spinner"></div>
+            <span>Connecting movie…</span>
+          </div>
 
-  overflow: hidden;
-}
 
+          <!-- Movie title -->
 
-/* ============================================================
-   TOP BAR
-   ============================================================ */
+          <div
+            id="movieTitle"
+            class="movie-title-overlay hidden"
+          >
+            <span id="movieTitleText">
+              Movie
+            </span>
+          </div>
 
-.topbar {
-  flex: 0 0 var(--topbar-height);
 
-  display: flex;
-  align-items: center;
+          <!-- Center play button -->
 
-  padding: 0 18px;
+          <button
+            id="centerPlayBtn"
+            class="center-play hidden"
+            type="button"
+            aria-label="Play movie"
+          >
+            ▶
+          </button>
 
-  border-bottom: 1px solid var(--border-soft);
 
-  background: rgba(8,8,10,0.94);
+          <!-- Movie controls -->
 
-  position: relative;
-  z-index: 20;
-}
+          <div
+            id="movieControls"
+            class="movie-controls"
+          >
 
-.brand {
-  min-width: 120px;
+            <button
+              id="playBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Play or pause"
+            >
+              ▶
+            </button>
 
-  font-size: 19px;
-}
+            <input
+              id="seekBar"
+              class="seek-bar"
+              type="range"
+              min="0"
+              max="100"
+              value="0"
+              step="0.1"
+              aria-label="Movie progress"
+            >
 
-.room-info {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+            <span
+              id="movieTime"
+              class="movie-time"
+            >
+              00:00
+            </span>
 
-  margin-left: 22px;
-}
+            <button
+              id="muteBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Mute"
+            >
+              🔊
+            </button>
 
-.room-label {
-  color: var(--muted-2);
+            <button
+              id="fullscreenBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Fullscreen"
+            >
+              ⛶
+            </button>
 
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-}
+          </div>
 
-.room-info strong {
-  color: var(--text);
+        </div>
 
-  font-size: 11px;
-  letter-spacing: 0.12em;
-}
+      </section>
 
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
 
-  margin-left: auto;
-}
+      <!-- =====================================================
+           RIGHT SIDE
+           ===================================================== -->
 
-.top-button {
-  height: 34px;
+      <aside class="people">
 
-  padding: 0 12px;
 
-  border: 1px solid var(--border);
-  border-radius: 9px;
+        <!-- Partner / camera row -->
 
-  background: rgba(255,255,255,0.045);
-  color: var(--text);
+        <div class="people-header">
 
-  font-size: 11px;
-  font-weight: 600;
-}
+          <span>
+            TOGETHER
+          </span>
 
-.top-button:hover {
-  background: rgba(255,255,255,0.08);
-}
+          <div
+            id="connectionStatus"
+            class="connection-status"
+          >
+            <i></i>
+            Connecting
+          </div>
 
-.button-icon {
-  margin-right: 4px;
-  color: var(--muted);
-}
+        </div>
 
-.exit-button {
-  color: #ff879f;
-}
 
+        <div class="video-row">
 
-/* ============================================================
-   WATCH LAYOUT
-   ============================================================ */
 
-.watch-layout {
-  flex: 1 1 auto;
+          <!-- You -->
 
-  min-height: 0;
+          <div class="person-card">
 
-  display: grid;
+            <div class="camera-box">
 
-  grid-template-columns: minmax(0, 1fr) 300px;
+              <video
+                id="localVideo"
+                autoplay
+                muted
+                playsinline
+              ></video>
 
-  gap: 10px;
+              <div
+                id="localPlaceholder"
+                class="camera-placeholder"
+              >
+                <span>YOU</span>
+              </div>
 
-  padding: 10px 10px 8px;
-}
+              <div class="person-overlay">
 
+                <span class="person-name">
+                  You
+                </span>
 
-/* ============================================================
-   MOVIE
-   ============================================================ */
+                <span
+                  id="localMicState"
+                  class="mic-state"
+                >
+                  🎙
+                </span>
 
-.movie-section {
-  min-width: 0;
-  min-height: 0;
-}
+              </div>
 
-.movie-container {
-  position: relative;
+            </div>
 
-  width: 100%;
-  height: 100%;
+          </div>
 
-  min-height: 0;
 
-  overflow: hidden;
+          <!-- Partner -->
 
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+          <div class="person-card">
 
-  background: #000;
+            <div class="camera-box">
 
-  box-shadow:
-    0 20px 70px rgba(0,0,0,0.35),
-    inset 0 0 0 1px rgba(255,255,255,0.015);
-}
+              <video
+                id="remoteVideo"
+                autoplay
+                playsinline
+              ></video>
 
-.movie {
-  position: absolute;
-  inset: 0;
+              <div
+                id="remotePlaceholder"
+                class="camera-placeholder partner-placeholder"
+              >
+                <span>PARTNER</span>
+              </div>
 
-  width: 100%;
-  height: 100%;
+              <div class="person-overlay">
 
-  object-fit: contain;
+                <span class="person-name">
+                  Partner
+                </span>
 
-  background: #000;
+                <span
+                  id="remoteMicState"
+                  class="mic-state"
+                >
+                  🎙
+                </span>
 
-  z-index: 1;
-}
+              </div>
 
-.movie-empty {
-  position: absolute;
-  inset: 0;
+            </div>
 
-  z-index: 5;
+          </div>
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+        </div>
 
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(255,255,255,0.045),
-      transparent 40%
-    ),
-    #09090b;
-}
 
-.movie-empty-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+        <!-- Chat -->
 
-  text-align: center;
-}
+        <div class="chat-panel">
 
-.movie-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+          <div class="chat-header">
+            <span>CHAT</span>
+            <span class="chat-dot"></span>
+          </div>
 
-  width: 58px;
-  height: 58px;
+          <div
+            id="messages"
+            class="messages"
+          ></div>
 
-  margin-bottom: 18px;
+          <form
+            id="chatForm"
+            class="chat-form"
+          >
 
-  border: 1px solid var(--border);
-  border-radius: 18px;
+            <input
+              id="chatInput"
+              type="text"
+              maxlength="500"
+              placeholder="Say something…"
+              autocomplete="off"
+            >
 
-  background: rgba(255,255,255,0.04);
+            <button
+              id="sendChat"
+              type="submit"
+              aria-label="Send message"
+            >
+              ↑
+            </button>
 
-  color: var(--accent);
+          </form>
 
-  font-size: 18px;
-}
+        </div>
 
-.empty-title {
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-}
+      </aside>
 
-.empty-text {
-  margin-top: 6px;
+    </section>
 
-  color: var(--muted);
 
-  font-size: 12px;
-}
+    <!-- =======================================================
+         BOTTOM CONTROLS
+         ======================================================= -->
 
-.choose-movie-button {
-  margin-top: 18px;
+    <footer class="bottom-controls">
 
-  height: 40px;
+      <div class="bottom-left">
 
-  padding: 0 18px;
+        <button
+          id="micBtn"
+          class="round-control"
+          type="button"
+          aria-label="Microphone"
+        >
+          🎙
+        </button>
 
-  border-radius: 10px;
+        <button
+          id="cameraBtn"
+          class="round-control"
+          type="button"
+          aria-label="Camera"
+        >
+          📷
+        </button>
 
-  background: var(--text);
-  color: #08080a;
+        <button
+          id="shareBtn"
+          class="round-control"
+          type="button"
+          aria-label="Share screen"
+        >
+          ▣
+        </button>
 
-  font-size: 12px;
-  font-weight: 700;
-}
+      </div>
 
-.movie-loading {
-  position: absolute;
-  inset: 0;
 
-  z-index: 8;
+      <div class="reactions">
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+        <button
+          class="reaction-btn"
+          data-emoji="❤️"
+          type="button"
+          aria-label="Love"
+        >
+          ❤️
+        </button>
 
-  background: rgba(0,0,0,0.45);
+        <button
+          class="reaction-btn"
+          data-emoji="🥰"
+          type="button"
+          aria-label="Adore"
+        >
+          🥰
+        </button>
 
-  color: white;
+        <button
+          class="reaction-btn"
+          data-emoji="😘"
+          type="button"
+          aria-label="Kiss"
+        >
+          😘
+        </button>
 
-  font-size: 12px;
-}
+        <button
+          class="reaction-btn"
+          data-emoji="😂"
+          type="button"
+          aria-label="Funny"
+        >
+          😂
+        </button>
 
-.loading-spinner {
-  width: 17px;
-  height: 17px;
+        <button
+          class="reaction-btn"
+          data-emoji="🔥"
+          type="button"
+          aria-label="Hot"
+        >
+          🔥
+        </button>
 
-  border: 2px solid rgba(255,255,255,0.25);
-  border-top-color: white;
+      </div>
 
-  border-radius: 50%;
+      <div class="bottom-right">
 
-  animation: spin 800ms linear infinite;
-}
+        <span
+          id="bottomRoomStatus"
+          class="bottom-room-status"
+        >
+          Waiting for partner
+        </span>
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+      </div>
 
-.movie-title-overlay {
-  position: absolute;
-  top: 15px;
-  left: 17px;
+    </footer>
 
-  z-index: 7;
 
-  max-width: 55%;
+    <!-- =======================================================
+         REACTION LAYER
+         ======================================================= -->
 
-  padding: 7px 10px;
+    <div
+      id="reactionLayer"
+      class="reaction-layer"
+    ></div>
 
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 8px;
+  </main>
 
-  background: rgba(0,0,0,0.55);
 
-  backdrop-filter: blur(8px);
+  <!-- =========================================================
+       TOAST
+       ========================================================= -->
 
-  color: white;
+  <div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite"
+  ></div>
 
-  font-size: 10px;
-  font-weight: 600;
 
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  <!-- Socket.IO -->
 
-.center-play {
-  position: absolute;
-  left: 50%;
-  top: 50%;
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 
-  z-index: 9;
+  <!-- App -->
 
-  transform: translate(-50%, -50%);
+  <script src="./app.js"></script>
 
-  width: 58px;
-  height: 58px;
-
-  border-radius: 50%;
-
-  background: rgba(255,255,255,0.94);
-  color: #08080a;
-
-  font-size: 18px;
-
-  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-}
-
-.movie-controls {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  z-index: 10;
-
-  display: flex;
-  align-items: center;
-  gap: 9px;
-
-  padding: 35px 13px 12px;
-
-  background:
-    linear-gradient(
-      to top,
-      rgba(0,0,0,0.78),
-      transparent
-    );
-}
-
-.movie-control-button {
-  flex: 0 0 auto;
-
-  width: 29px;
-  height: 29px;
-
-  border-radius: 8px;
-
-  background: rgba(255,255,255,0.09);
-  color: white;
-
-  font-size: 12px;
-}
-
-.movie-control-button:hover {
-  background: rgba(255,255,255,0.15);
-}
-
-.seek-bar {
-  flex: 1;
-
-  min-width: 40px;
-
-  height: 3px;
-
-  accent-color: var(--accent);
-
-  cursor: pointer;
-}
-
-.movie-time {
-  min-width: 65px;
-
-  color: rgba(255,255,255,0.72);
-
-  font-size: 10px;
-
-  text-align: right;
-}
-
-
-/* ============================================================
-   RIGHT PANEL
-   ============================================================ */
-
-.people {
-  min-width: 0;
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  padding: 11px;
-
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-
-  background: #101014;
-
-  overflow: hidden;
-}
-
-.people-header {
-  flex: 0 0 20px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 0 2px;
-
-  color: var(--muted-2);
-
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-
-  color: var(--muted);
-
-  font-size: 9px;
-  font-weight: 500;
-
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.connection-status i {
-  width: 5px;
-  height: 5px;
-
-  border-radius: 50%;
-
-  background: #e0a83c;
-
-  box-shadow: 0 0 8px rgba(224,168,60,0.7);
-}
-
-.connection-status.on i {
-  background: #52d88a;
-  box-shadow: 0 0 8px rgba(82,216,138,0.7);
-}
-
-.video-row {
-  flex: 0 0 auto;
-
-  display: grid;
-
-  grid-template-columns: 1fr 1fr;
-
-  gap: 7px;
-}
-
-.person-card {
-  min-width: 0;
-}
-
-.camera-box {
-  position: relative;
-
-  aspect-ratio: 16 / 10;
-
-  overflow: hidden;
-
-  border: 1px solid var(--border);
-  border-radius: 12px;
-
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(255,255,255,0.05),
-      transparent 55%
-    ),
-    #0b0b0e;
-}
-
-.camera-box video {
-  width: 100%;
-  height: 100%;
-
-  display: block;
-
-  object-fit: cover;
-
-  background: #0b0b0e;
-}
-
-.camera-placeholder {
-  position: absolute;
-  inset: 0;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  pointer-events: none;
-
-  color: #55545a;
-
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.camera-placeholder span {
-  padding: 7px 9px;
-
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 7px;
-
-  background: rgba(255,255,255,0.025);
-}
-
-.person-overlay {
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  bottom: 6px;
-
-  z-index: 3;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 7px 8px;
-
-  border-radius: 8px;
-
-  background: linear-gradient(
-    to top,
-    rgba(0,0,0,0.65),
-    rgba(0,0,0,0.05)
-  );
-}
-
-.person-name {
-  color: white;
-
-  font-size: 9px;
-  font-weight: 600;
-}
-
-.mic-state {
-  font-size: 10px;
-}
-
-
-/* ============================================================
-   CHAT
-   ============================================================ */
-
-.chat-panel {
-  flex: 1 1 auto;
-
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-
-  border: 1px solid var(--border-soft);
-  border-radius: 13px;
-
-  background: rgba(255,255,255,0.018);
-
-  overflow: hidden;
-}
-
-.chat-header {
-  flex: 0 0 32px;
-
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  padding: 0 10px;
-
-  border-bottom: 1px solid var(--border-soft);
-
-  color: var(--muted-2);
-
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.chat-dot {
-  width: 4px;
-  height: 4px;
-
-  border-radius: 50%;
-
-  background: var(--accent);
-}
-
-.messages {
-  flex: 1 1 auto;
-
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-
-  padding: 9px;
-
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.message {
-  max-width: 88%;
-
-  padding: 7px 9px;
-
-  border-radius: 9px;
-
-  background: rgba(255,255,255,0.06);
-
-  color: #e8e7e9;
-
-  font-size: 10px;
-  line-height: 1.35;
-
-  word-break: break-word;
-}
-
-.message.you {
-  align-self: flex-end;
-
-  background: rgba(255,82,120,0.16);
-  color: #ffe7ed;
-}
-
-.message.partner {
-  align-self: flex-start;
-}
-
-.chat-form {
-  flex: 0 0 38px;
-
-  display: flex;
-  align-items: center;
-  gap: 5px;
-
-  padding: 5px;
-
-  border-top: 1px solid var(--border-soft);
-}
-
-.chat-form input {
-  flex: 1;
-
-  min-width: 0;
-  height: 28px;
-
-  padding: 0 9px;
-
-  border: 0;
-  outline: 0;
-  border-radius: 8px;
-
-  background: rgba(255,255,255,0.055);
-
-  color: white;
-
-  font-size: 10px;
-}
-
-.chat-form input::placeholder {
-  color: #5f5e64;
-}
-
-.chat-form button {
-  flex: 0 0 29px;
-
-  width: 29px;
-  height: 29px;
-
-  border-radius: 8px;
-
-  background: var(--accent);
-
-  color: white;
-
-  font-size: 15px;
-  font-weight: 700;
-}
-
-
-/* ============================================================
-   BOTTOM CONTROLS
-   ============================================================ */
-
-.bottom-controls {
-  flex: 0 0 var(--bottom-height);
-
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-
-  padding: 0 17px;
-
-  border-top: 1px solid var(--border-soft);
-
-  background: rgba(8,8,10,0.97);
-
-  position: relative;
-  z-index: 20;
-}
-
-.bottom-left {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.bottom-right {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.round-control {
-  width: 36px;
-  height: 36px;
-
-  border: 1px solid var(--border);
-  border-radius: 11px;
-
-  background: rgba(255,255,255,0.045);
-
-  color: white;
-
-  font-size: 14px;
-}
-
-.round-control:hover {
-  background: rgba(255,255,255,0.08);
-}
-
-.reactions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  padding: 4px;
-
-  border: 1px solid var(--border);
-  border-radius: 13px;
-
-  background: rgba(255,255,255,0.025);
-}
-
-.reaction-btn {
-  width: 35px;
-  height: 35px;
-
-  border-radius: 9px;
-
-  background: transparent;
-
-  font-size: 17px;
-
-  transition:
-    transform 120ms ease,
-    background 120ms ease;
-}
-
-.reaction-btn:hover {
-  background: rgba(255,255,255,0.07);
-  transform: translateY(-2px);
-}
-
-.reaction-btn:active {
-  transform: scale(0.86);
-}
-
-.bottom-room-status {
-  color: var(--muted-2);
-
-  font-size: 9px;
-}
-
-
-/* ============================================================
-   REACTIONS
-   ============================================================ */
-
-.reaction-layer {
-  position: fixed;
-  inset: 0;
-
-  z-index: 100;
-
-  pointer-events: none;
-
-  overflow: hidden;
-}
-
-.floating-reaction {
-  position: absolute;
-  z-index: 101;
-  display: block;
-  bottom: auto;
-  font-size: clamp(30px, 4.5vw, 54px);
-  line-height: 1;
-  will-change: transform, opacity;
-  animation: floatReaction 1800ms cubic-bezier(.18,.68,.25,1) forwards;
-  filter: drop-shadow(0 5px 18px rgba(0,0,0,0.42));
-}
-
-@keyframes floatReaction {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -35%) scale(0.55) rotate(-8deg);
-  }
-  12% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.18) rotate(3deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--drift, 0px)), calc(-50% - 170px)) scale(1.28) rotate(8deg);
-  }
-}
-
-
-/* ============================================================
-   TOAST
-   ============================================================ */
-
-.toast {
-  position: fixed;
-
-  left: 50%;
-  bottom: 86px;
-
-  z-index: 200;
-
-  transform:
-    translate(-50%, 15px)
-    scale(0.96);
-
-  max-width: calc(100vw - 30px);
-
-  padding: 9px 13px;
-
-  border: 1px solid var(--border);
-  border-radius: 10px;
-
-  background: rgba(20,20,23,0.94);
-
-  color: white;
-
-  font-size: 11px;
-
-  opacity: 0;
-  pointer-events: none;
-
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-
-  backdrop-filter: blur(12px);
-}
-
-.toast.show {
-  opacity: 1;
-
-  transform:
-    translate(-50%, 0)
-    scale(1);
-}
-
-
-/* ============================================================
-   MOBILE LANDSCAPE
-   ============================================================ */
-
-@media (max-width: 900px) and (orientation: landscape) {
-
-  :root {
-    --topbar-height: 47px;
-    --bottom-height: 53px;
-  }
-
-  .topbar {
-    padding: 0 11px;
-  }
-
-  .brand {
-    font-size: 15px;
-    min-width: 95px;
-  }
-
-  .room-info {
-    margin-left: 9px;
-  }
-
-  .room-label {
-    font-size: 7px;
-  }
-
-  .room-info strong {
-    font-size: 9px;
-  }
-
-  .top-button {
-    height: 28px;
-    padding: 0 8px;
-    font-size: 9px;
-  }
-
-  .watch-layout {
-    grid-template-columns: minmax(0, 1fr) 30%;
-    gap: 6px;
-    padding: 6px;
-  }
-
-  .movie-container,
-  .people {
-    border-radius: 13px;
-  }
-
-  .people {
-    padding: 7px;
-    gap: 6px;
-  }
-
-  .people-header {
-    flex-basis: 15px;
-    font-size: 7px;
-  }
-
-  .connection-status {
-    font-size: 7px;
-  }
-
-  .video-row {
-    gap: 5px;
-  }
-
-  .camera-box {
-    border-radius: 8px;
-  }
-
-  .person-overlay {
-    left: 4px;
-    right: 4px;
-    bottom: 3px;
-    padding: 4px 5px;
-  }
-
-  .person-name {
-    font-size: 7px;
-  }
-
-  .mic-state {
-    font-size: 8px;
-  }
-
-  .chat-header {
-    flex-basis: 25px;
-    padding: 0 7px;
-    font-size: 7px;
-  }
-
-  .messages {
-    padding: 6px;
-    gap: 5px;
-  }
-
-  .message {
-    padding: 5px 7px;
-    font-size: 8px;
-    border-radius: 7px;
-  }
-
-  .chat-form {
-    flex-basis: 31px;
-    padding: 4px;
-  }
-
-  .chat-form input {
-    height: 23px;
-    font-size: 8px;
-  }
-
-  .chat-form button {
-    width: 23px;
-    height: 23px;
-    flex-basis: 23px;
-    font-size: 12px;
-  }
-
-  .movie-controls {
-    padding:
-      26px
-      9px
-      7px;
-    gap: 6px;
-  }
-
-  .movie-control-button {
-    width: 25px;
-    height: 25px;
-    font-size: 10px;
-  }
-
-  .movie-time {
-    min-width: 48px;
-    font-size: 8px;
-  }
-
-  .center-play {
-    width: 45px;
-    height: 45px;
-    font-size: 14px;
-  }
-
-  .movie-title-overlay {
-    top: 8px;
-    left: 9px;
-    padding: 5px 7px;
-    font-size: 8px;
-  }
-
-  .bottom-controls {
-    padding: 0 10px;
-  }
-
-  .round-control {
-    width: 29px;
-    height: 29px;
-    border-radius: 8px;
-    font-size: 11px;
-  }
-
-  .reactions {
-    gap: 1px;
-    padding: 3px;
-    border-radius: 9px;
-  }
-
-  .reaction-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    font-size: 14px;
-  }
-
-  .bottom-room-status {
-    font-size: 7px;
-  }
-
-}
-
-
-/* ============================================================
-   SMALL MOBILE LANDSCAPE
-   ============================================================ */
-
-@media (max-height: 430px) and (orientation: landscape) {
-
-  :root {
-    --topbar-height: 42px;
-    --bottom-height: 47px;
-  }
-
-  .watch-layout {
-    padding: 4px;
-    gap: 4px;
-  }
-
-  .people {
-    padding: 5px;
-    gap: 4px;
-  }
-
-  .movie-container,
-  .people {
-    border-radius: 10px;
-  }
-
-  .gate-card {
-    padding: 27px 25px 20px;
-  }
-
-  .gate-brand {
-    font-size: 20px;
-  }
-
-  .gate-tagline {
-    margin-bottom: 18px;
-  }
-
-  .gate-primary,
-  .gate-secondary {
-    min-height: 40px;
-  }
-
-}
-
-
-/* ============================================================
-   PORTRAIT FALLBACK
-   ============================================================ */
-
-@media (orientation: portrait) {
-
-  body {
-    overflow: auto;
-  }
-
-  .app {
-    min-height: 100dvh;
-    height: auto;
-    overflow: visible;
-  }
-
-  .watch-layout {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .movie-container {
-    aspect-ratio: 16 / 9;
-    height: auto;
-  }
-
-  .people {
-    min-height: 420px;
-  }
-
-  .bottom-controls {
-    position: sticky;
-    bottom: 0;
-  }
-
-}
-
-/* Top-bar movie switcher: aligned with Share / Exit at every viewport. */
-.top-actions .change-movie-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  border-color: rgba(255,82,120,0.28);
-  background: rgba(255,82,120,0.10);
-  color: #ffdce5;
-}
-.top-actions .change-movie-button:hover {
-  background: rgba(255,82,120,0.18);
-}
-@media (max-width: 900px) and (orientation: landscape) {
-  .top-actions { gap: 5px; }
-  .top-actions .change-movie-button { padding-inline: 7px; font-size: 9px; }
-}
+</body>
+</html>
