@@ -1152,33 +1152,28 @@ input:focus-visible {
 
 .floating-reaction {
   position: absolute;
-
-  bottom: 80px;
-
-  font-size: 28px;
-
-  animation: floatReaction 1800ms ease-out forwards;
-
-  filter: drop-shadow(0 5px 14px rgba(0,0,0,0.35));
+  z-index: 101;
+  display: block;
+  bottom: auto;
+  font-size: clamp(30px, 4.5vw, 54px);
+  line-height: 1;
+  will-change: transform, opacity;
+  animation: floatReaction 1800ms cubic-bezier(.18,.68,.25,1) forwards;
+  filter: drop-shadow(0 5px 18px rgba(0,0,0,0.42));
 }
 
 @keyframes floatReaction {
   0% {
     opacity: 0;
-    transform:
-      translate3d(0, 20px, 0)
-      scale(0.7);
+    transform: translate(-50%, -35%) scale(0.55) rotate(-8deg);
   }
-
   12% {
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1.18) rotate(3deg);
   }
-
   100% {
     opacity: 0;
-    transform:
-      translate3d(var(--drift), -260px, 0)
-      scale(1.15);
+    transform: translate(calc(-50% + var(--drift, 0px)), calc(-50% - 170px)) scale(1.28) rotate(8deg);
   }
 }
 
@@ -1495,4 +1490,23 @@ input:focus-visible {
     bottom: 0;
   }
 
+}
+
+/* Top-bar movie switcher: aligned with Share / Exit at every viewport. */
+.top-actions .change-movie-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  border-color: rgba(255,82,120,0.28);
+  background: rgba(255,82,120,0.10);
+  color: #ffdce5;
+}
+.top-actions .change-movie-button:hover {
+  background: rgba(255,82,120,0.18);
+}
+@media (max-width: 900px) and (orientation: landscape) {
+  .top-actions { gap: 5px; }
+  .top-actions .change-movie-button { padding-inline: 7px; font-size: 9px; }
 }
