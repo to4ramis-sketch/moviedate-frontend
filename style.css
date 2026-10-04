@@ -789,7 +789,7 @@ input:focus-visible {
   box-shadow: 0 0 8px rgba(224,168,60,0.7);
 }
 
-.connection-status.connected i {
+.connection-status.on i {
   background: #52d88a;
   box-shadow: 0 0 8px rgba(82,216,138,0.7);
 }
