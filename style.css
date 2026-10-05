@@ -1510,3 +1510,11 @@ input:focus-visible {
   .top-actions { gap: 5px; }
   .top-actions .change-movie-button { padding-inline: 7px; font-size: 9px; }
 }
+/* Append to the END of style.css; do not replace existing styles. */
+.gesture-reaction-control{display:flex;align-items:center;gap:6px;margin-left:auto;letter-spacing:0;text-transform:none;flex-shrink:0}
+.gesture-reaction-status{max-width:112px;overflow:hidden;color:var(--muted);font-size:9px;font-weight:500;white-space:nowrap;text-overflow:ellipsis}
+.gesture-reaction-toggle{min-height:27px;padding:0 9px;border:1px solid rgba(255,82,120,.25);border-radius:8px;background:rgba(255,82,120,.09);color:#ffdce5;font-size:9px;font-weight:650;white-space:nowrap}
+.gesture-reaction-toggle.is-enabled{border-color:rgba(82,216,138,.3);background:rgba(82,216,138,.10);color:#b9f5d0}
+@media(max-width:900px) and (orientation:landscape){.gesture-reaction-control{gap:4px}.gesture-reaction-status{max-width:76px;font-size:7px}.gesture-reaction-toggle{min-height:24px;padding:0 6px;font-size:7px}}
+@media(max-width:480px) and (orientation:portrait){.gesture-reaction-status{display:none}.gesture-reaction-control{gap:0}}
+
