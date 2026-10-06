@@ -1,139 +1,251 @@
 import { GestureRecognizer, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
-/* MovieDate: invisible one-hand gesture recognition + horizontal emoji picker. */
+/* MovieDate hand gestures: uses the existing camera stream and existing bottom reaction row. */
 (() => {
   const video = document.getElementById("localVideo");
-  if (!video || document.querySelector("[data-moviedate-emoji-panel]")) return;
+  const reactionRow = document.querySelector(".reactions");
+  if (!video || !reactionRow || window.__movieDateGestureModuleLoaded) return;
+  window.__movieDateGestureModuleLoaded = true;
 
   const STORAGE_KEY = "moviedate-gesture-reactions-enabled";
   let enabled = localStorage.getItem(STORAGE_KEY) !== "false";
-  let recognizer = null, loading = false, rafId = 0, lastVideoTime = -1, lastInferenceAt = 0;
-  let candidate = "", candidateFrames = 0, lastGesture = "", lastTriggerAt = 0;
+  let recognizer = null;
+  let loading = false;
+  let rafId = 0;
+  let lastVideoTime = -1;
+  let lastInferenceAt = 0;
+  let candidate = "";
+  let candidateFrames = 0;
+  let lastGesture = "";
+  let lastTriggerAt = 0;
 
   const GESTURES = {
-    hearts: { emoji: "❤️", category: "ILoveYou", effect: "hearts" },
-    balloons: { emoji: "🎈", category: "Victory", effect: "balloons" },
-    thumbsUp: { emoji: "👍", category: "Thumb_Up", effect: "emoji" },
-    thumbsDown: { emoji: "👎", category: "Thumb_Down", effect: "emoji" },
-    rain: { emoji: "🌧️", category: "Open_Palm", effect: "rain" },
-    confetti: { emoji: "🎉", category: "Pointing_Up", effect: "confetti" },
-    fireworks: { emoji: "🎆", category: "Closed_Fist", effect: "fireworks" },
-    lasers: { emoji: "🔫", category: "Horns", effect: "lasers" }
+    hearts: { emoji: "❤️", effect: "hearts" },
+    balloons: { emoji: "🎈", effect: "balloons" },
+    thumbsUp: { emoji: "👍", effect: "emoji" },
+    thumbsDown: { emoji: "👎", effect: "emoji" },
+    rain: { emoji: "🌧️", effect: "rain" },
+    confetti: { emoji: "🎉", effect: "confetti" },
+    fireworks: { emoji: "🎆", effect: "fireworks" },
+    lasers: { emoji: "💫", effect: "lasers" }
   };
 
-  const EMOJIS = ["❤️","🥰","😘","😍","💋","💕","💖","💗","💘","💞","🫶","🤗","😊","😉","😏","😂","🤣","🥹","😭","😈","🔥","✨","💯","👍","👎","👏","🙌","🎉","🎊","🎈","🌹","🌷","💐","🧸","🍿","🌙","⭐","💫","🌧️","🎆"];
-  const panel = document.createElement("section");
-  panel.className = "md-emoji-panel";
-  panel.dataset.moviedateEmojiPanel = "true";
-  panel.setAttribute("aria-label", "Emoji reactions");
-  panel.innerHTML = `
-    <div class="md-emoji-panel-head"><span>Reactions</span><button type="button" class="md-gesture-toggle" aria-label="Pause hand gestures" title="Pause hand gestures" aria-pressed="${enabled}">${enabled ? "✋" : "⏸"}</button></div>
-    <div class="md-emoji-strip" role="toolbar" aria-label="Swipe for more emoji reactions">
-      ${EMOJIS.map((emoji, i) => `<button type="button" class="md-emoji-button" data-emoji-index="${i}" aria-label="Send ${emoji}">${emoji}</button>`).join("")}
-    </div>`;
-  const anchor = document.querySelector(".people-header") || video.parentElement;
-  if (anchor) anchor.insertAdjacentElement("afterend", panel);
+  const EXTRA_EMOJIS = [
+    "😍", "💋", "💕", "💖", "💗", "💘", "💞", "🫶", "🤗", "😊",
+    "😉", "😏", "🤣", "🥹", "😭", "😈", "✨", "💯", "👏", "🙌",
+    "🎊", "🌹", "🌷", "💐", "🧸", "🍿", "🌙", "⭐", "💫", "🎆", "💌", "💝"
+  ];
 
-  panel.querySelectorAll(".md-emoji-button").forEach(button => {
+  // Keep the five existing buttons. Add extra emojis into that same bottom row.
+  EXTRA_EMOJIS.forEach(emoji => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "reaction-btn md-extra-reaction-btn";
+    button.dataset.emoji = emoji;
+    button.setAttribute("aria-label", `Send ${emoji}`);
+    button.title = emoji;
+    button.textContent = emoji;
     button.addEventListener("click", () => {
-      const emoji = EMOJIS[Number(button.dataset.emojiIndex)];
-      if (emoji) window.dispatchEvent(new CustomEvent("moviedate:gesture-reaction", { detail: { emoji, effect: "emoji" } }));
-      button.classList.add("is-tapped");
-      window.setTimeout(() => button.classList.remove("is-tapped"), 220);
+      window.dispatchEvent(new CustomEvent("moviedate:gesture-reaction", {
+        detail: { emoji, effect: "emoji" }
+      }));
+      button.classList.add("md-reaction-tapped");
+      window.setTimeout(() => button.classList.remove("md-reaction-tapped"), 220);
     });
+    reactionRow.appendChild(button);
   });
-  const toggle = panel.querySelector(".md-gesture-toggle");
-  toggle.addEventListener("click", () => {
+
+  // Tiny hand toggle in the existing row; no visible gesture directory or extra panel.
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "reaction-btn md-gesture-toggle";
+  toggleButton.textContent = enabled ? "✋" : "⏸";
+  toggleButton.title = enabled ? "Pause hand gestures" : "Resume hand gestures";
+  toggleButton.setAttribute("aria-label", toggleButton.title);
+  toggleButton.setAttribute("aria-pressed", String(enabled));
+  toggleButton.dataset.noReaction = "true";
+  reactionRow.appendChild(toggleButton);
+
+  toggleButton.addEventListener("click", () => {
     enabled = !enabled;
     localStorage.setItem(STORAGE_KEY, String(enabled));
-    toggle.textContent = enabled ? "✋" : "⏸";
-    toggle.setAttribute("aria-pressed", String(enabled));
-    toggle.setAttribute("aria-label", enabled ? "Pause hand gestures" : "Resume hand gestures");
-    toggle.title = enabled ? "Pause hand gestures" : "Resume hand gestures";
-    if (enabled) { init(); loop(); } else cancelAnimationFrame(rafId);
+    toggleButton.textContent = enabled ? "✋" : "⏸";
+    toggleButton.title = enabled ? "Pause hand gestures" : "Resume hand gestures";
+    toggleButton.setAttribute("aria-label", toggleButton.title);
+    toggleButton.setAttribute("aria-pressed", String(enabled));
+    toggleButton.classList.toggle("md-gesture-active", enabled);
+    if (enabled) {
+      initRecognizer();
+      startLoop();
+    } else {
+      cancelAnimationFrame(rafId);
+    }
   });
 
-  function renderEffect(effect) {
-    const layer = document.getElementById("reactionLayer") || video.parentElement;
-    if (!layer) return;
-    if (getComputedStyle(layer).position === "static") layer.style.position = "relative";
+  function ensureFloatingLayer() {
+    let layer = document.getElementById("reactionLayer");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "reactionLayer";
+      document.body.appendChild(layer);
+    }
+    layer.classList.add("md-floating-reaction-layer");
+    return layer;
+  }
+
+  function playEffect(effect, emoji = "❤️") {
+    const layer = ensureFloatingLayer();
+    const target = document.getElementById("movieTap") || document.getElementById("movie")?.parentElement || document.querySelector(".movie-container");
+    const rect = target?.getBoundingClientRect();
+    const area = rect && rect.width > 0 && rect.height > 0
+      ? rect
+      : { left: window.innerWidth * 0.04, top: window.innerHeight * 0.12, width: window.innerWidth * 0.72, height: window.innerHeight * 0.72 };
     const palettes = {
-      hearts: ["❤️", "💗", "💕", "💖"], balloons: ["🎈", "🎈", "💖"],
-      rain: ["💧", "🌧️", "💧"], confetti: ["🎉", "✨", "🎊", "💖"],
-      fireworks: ["🎆", "✨", "💥", "⭐"], lasers: ["💫", "✨", "🔴"], emoji: []
+      hearts: ["❤️", "💗", "💕", "💖", "💘", "💞", "🥰"],
+      balloons: ["🎈", "🎈", "💖", "✨"],
+      rain: ["💧", "🌧️", "💧", "💦"],
+      confetti: ["🎉", "✨", "🎊", "💖", "⭐"],
+      fireworks: ["🎆", "✨", "💥", "⭐", "🎇"],
+      lasers: ["💫", "✨", "🔴", "⚡"],
+      emoji: [emoji, emoji, emoji, "✨"]
     };
-    const particles = palettes[effect];
-    if (!particles || effect === "emoji") return;
-    const count = effect === "rain" ? 12 : effect === "lasers" ? 5 : 8;
+    const particles = palettes[effect] || palettes.emoji;
+    const count = effect === "rain" ? 18 : effect === "emoji" ? 12 : 14;
+
     for (let i = 0; i < count; i++) {
       const particle = document.createElement("span");
       particle.className = "md-gesture-burst";
       particle.textContent = particles[Math.floor(Math.random() * particles.length)];
-      particle.style.left = `${8 + Math.random() * 84}%`;
-      particle.style.top = effect === "rain" ? `${Math.random() * 30}%` : `${45 + Math.random() * 35}%`;
-      particle.style.setProperty("--md-drift", `${Math.round(Math.random() * 90 - 45)}px`);
-      if (effect === "rain") particle.style.animationDuration = `${.75 + Math.random() * .55}s`;
+      particle.style.left = `${area.left + area.width * (0.12 + Math.random() * 0.76)}px`;
+      particle.style.top = effect === "rain"
+        ? `${area.top + area.height * (0.02 + Math.random() * 0.22)}px`
+        : `${area.top + area.height * (0.42 + Math.random() * 0.45)}px`;
+      particle.style.setProperty("--md-drift", `${Math.round(Math.random() * 150 - 75)}px`);
+      particle.style.setProperty("--md-rise", `${Math.round(180 + Math.random() * 260)}px`);
+      particle.style.setProperty("--md-delay", `${Math.random() * 180}ms`);
       layer.appendChild(particle);
       particle.addEventListener("animationend", () => particle.remove(), { once: true });
-      window.setTimeout(() => particle.remove(), 2400);
+      window.setTimeout(() => particle.remove(), 2800);
     }
   }
-  window.addEventListener("moviedate:play-gesture-effect", event => renderEffect(event.detail?.effect));
-  window.addEventListener("moviedate:remote-gesture-effect", event => renderEffect(event.detail?.effect));
 
-  function classifyHorns(result) {
-    const landmarks = result?.landmarks?.[0];
-    const category = result?.gestures?.[0]?.[0]?.categoryName;
-    if (!landmarks || category !== "ILoveYou") return null;
-    const thumbTip = landmarks[4], indexMcp = landmarks[5], pinkyMcp = landmarks[17];
-    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-    const palmWidth = Math.max(d(indexMcp, pinkyMcp), 0.001);
-    return d(thumbTip, indexMcp) / palmWidth < 0.62 ? "lasers" : "hearts";
-  }
+  window.addEventListener("moviedate:play-gesture-effect", event => {
+    playEffect(event.detail?.effect, event.detail?.emoji);
+  });
+  window.addEventListener("moviedate:remote-gesture-effect", event => {
+    playEffect(event.detail?.effect, event.detail?.emoji);
+  });
+  // Manual taps on either the original emoji buttons or added buttons produce a floating burst.
+  window.addEventListener("moviedate:gesture-reaction", event => {
+    const detail = event.detail || {};
+    playEffect(detail.effect || "emoji", detail.emoji || "❤️");
+  });
+  reactionRow.addEventListener("click", event => {
+    const button = event.target.closest(".reaction-btn");
+    if (!button || button.dataset.noReaction === "true") return;
+    // Original five buttons are handled by app.js; this adds only the local floating animation.
+    if (!button.classList.contains("md-extra-reaction-btn")) {
+      playEffect("emoji", button.dataset.emoji || button.textContent.trim() || "❤️");
+    }
+  });
+
   function mapGesture(result) {
-    if (!result?.gestures?.length || !result.gestures[0]?.length) return null;
-    const category = result.gestures[0][0].categoryName;
-    if (category === "ILoveYou") return classifyHorns(result);
-    const byCategory = { Victory: "balloons", Thumb_Up: "thumbsUp", Thumb_Down: "thumbsDown", Open_Palm: "rain", Pointing_Up: "confetti", Closed_Fist: "fireworks" };
-    return byCategory[category] || null;
+    const category = result?.gestures?.[0]?.[0]?.categoryName;
+    const mapping = {
+      ILoveYou: "hearts",
+      Victory: "balloons",
+      Thumb_Up: "thumbsUp",
+      Thumb_Down: "thumbsDown",
+      Open_Palm: "rain",
+      Pointing_Up: "confetti",
+      Closed_Fist: "fireworks"
+    };
+    return mapping[category] || null;
   }
-  function sendReaction(key) {
+
+  function sendGesture(key) {
     const item = GESTURES[key];
     if (!item) return;
-    window.dispatchEvent(new CustomEvent("moviedate:gesture-reaction", { detail: { emoji: item.emoji, effect: item.effect } }));
-    window.dispatchEvent(new CustomEvent("moviedate:play-gesture-effect", { detail: { effect: item.effect } }));
-    toggle.classList.add("is-gesture-active");
-    window.setTimeout(() => toggle.classList.remove("is-gesture-active"), 500);
+    window.dispatchEvent(new CustomEvent("moviedate:gesture-reaction", {
+      detail: { emoji: item.emoji, effect: item.effect }
+    }));
+    toggleButton.classList.add("md-gesture-active");
+    window.setTimeout(() => toggleButton.classList.remove("md-gesture-active"), 450);
   }
-  async function init() {
+
+  async function initRecognizer() {
     if (!enabled || recognizer || loading) return;
     loading = true;
+    toggleButton.classList.remove("md-gesture-unavailable");
     try {
-      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-      const options = { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task", delegate: "GPU" }, runningMode: "VIDEO", numHands: 1, minHandDetectionConfidence: .55, minHandPresenceConfidence: .55, minTrackingConfidence: .55 };
-      try { recognizer = await GestureRecognizer.createFromOptions(vision, options); }
-      catch (_) { options.baseOptions.delegate = "CPU"; recognizer = await GestureRecognizer.createFromOptions(vision, options); }
-      loop();
-    } catch (error) { console.error("[MovieDate hand gestures]", error); toggle.classList.add("is-gesture-unavailable"); }
-    finally { loading = false; }
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+      const options = {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 1,
+        minHandDetectionConfidence: 0.45,
+        minHandPresenceConfidence: 0.45,
+        minTrackingConfidence: 0.45
+      };
+      try {
+        recognizer = await GestureRecognizer.createFromOptions(vision, options);
+      } catch (gpuError) {
+        options.baseOptions.delegate = "CPU";
+        recognizer = await GestureRecognizer.createFromOptions(vision, options);
+      }
+      toggleButton.classList.remove("md-gesture-unavailable");
+      startLoop();
+    } catch (error) {
+      console.error("[MovieDate] Could not start hand gesture recognition:", error);
+      toggleButton.classList.add("md-gesture-unavailable");
+      toggleButton.title = "Hand gestures unavailable — check camera permission and internet connection";
+    } finally {
+      loading = false;
+    }
   }
-  function loop() {
+
+  function startLoop() {
     cancelAnimationFrame(rafId);
     const tick = now => {
       rafId = requestAnimationFrame(tick);
-      if (!enabled || !recognizer || document.hidden || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
-      if (now - lastInferenceAt < 130 || video.currentTime === lastVideoTime) return;
-      lastInferenceAt = now; lastVideoTime = video.currentTime;
+      if (!enabled || !recognizer || document.hidden) return;
+      if (!video.srcObject || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return;
+      if (now - lastInferenceAt < 100 || video.currentTime === lastVideoTime) return;
+      lastInferenceAt = now;
+      lastVideoTime = video.currentTime;
       try {
-        const key = mapGesture(recognizer.recognizeForVideo(video, now));
-        if (!key) { candidate = ""; candidateFrames = 0; if (now - lastTriggerAt > 900) lastGesture = ""; return; }
-        candidateFrames = key === candidate ? candidateFrames + 1 : 1; candidate = key;
-        if (candidateFrames >= 4 && (key !== lastGesture || now - lastTriggerAt > 1700)) { sendReaction(key); lastGesture = key; lastTriggerAt = now; }
-      } catch (error) { console.warn("[MovieDate gesture frame]", error); }
+        const result = recognizer.recognizeForVideo(video, now);
+        const key = mapGesture(result);
+        if (!key) {
+          candidate = "";
+          candidateFrames = 0;
+          if (now - lastTriggerAt > 1100) lastGesture = "";
+          return;
+        }
+        candidateFrames = key === candidate ? candidateFrames + 1 : 1;
+        candidate = key;
+        if (candidateFrames >= 3 && (key !== lastGesture || now - lastTriggerAt > 1800)) {
+          sendGesture(key);
+          lastGesture = key;
+          lastTriggerAt = now;
+        }
+      } catch (error) {
+        console.warn("[MovieDate] Hand gesture frame failed:", error);
+      }
     };
     rafId = requestAnimationFrame(tick);
   }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) cancelAnimationFrame(rafId); else if (enabled) { lastVideoTime = -1; init(); loop(); } });
-  video.addEventListener("loadedmetadata", () => { if (enabled) { init(); loop(); } });
-  if (enabled) init();
+
+  video.addEventListener("loadeddata", () => { if (enabled) { initRecognizer(); startLoop(); } });
+  video.addEventListener("playing", () => { if (enabled) { initRecognizer(); startLoop(); } });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) cancelAnimationFrame(rafId);
+    else if (enabled) { lastVideoTime = -1; initRecognizer(); startLoop(); }
+  });
+  if (enabled) initRecognizer();
 })();
