@@ -115,3 +115,65 @@ animation-duration: .01ms !important;
 animation-iteration-count: 1 !important;
 }
 }
+/* ============================================================
+MOVIEDATE FIX — SCROLLABLE EMOJI BAR
+============================================================ */
+
+.bottom-controls {
+grid-template-columns: minmax(0, 1fr) minmax(0, min(56vw, 620px)) minmax(0, 1fr);
+gap: 8px;
+min-width: 0;
+}
+
+.bottom-left,
+.bottom-right {
+min-width: 0;
+}
+
+.reactions {
+width: 100%;
+min-width: 0;
+max-width: 100%;
+overflow-x: auto;
+overflow-y: hidden;
+flex-wrap: nowrap;
+justify-self: center;
+white-space: nowrap;
+scrollbar-width: none;
+-webkit-overflow-scrolling: touch;
+touch-action: pan-x;
+}
+
+.reactions::-webkit-scrollbar {
+display: none;
+}
+
+.reactions .reaction-btn {
+flex: 0 0 32px;
+width: 32px;
+min-width: 32px;
+height: 32px;
+padding: 0;
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+.bottom-controls {
+grid-template-columns: minmax(0, 1fr) minmax(0, 58vw) minmax(0, 1fr);
+gap: 4px;
+padding-left: 6px;
+padding-right: 6px;
+}
+
+.reactions {
+gap: 2px;
+padding: 3px;
+}
+
+.reactions .reaction-btn {
+flex-basis: 28px;
+width: 28px;
+min-width: 28px;
+height: 28px;
+font-size: 14px;
+}
+}
