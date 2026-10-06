@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#09090b"
+  >
+
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <title>MovieDate</title>
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+  <!-- =========================================================
+       ROOM GATE
+       ========================================================= -->
+
+  <section id="roomGate" class="room-gate">
+
+    <div class="gate-glow gate-glow-one"></div>
+    <div class="gate-glow gate-glow-two"></div>
+
+    <div class="gate-card">
+
+      <div class="gate-brand">
+        Movie<span>Date</span>
+      </div>
+
+      <p class="gate-tagline">
+        Watch together. Anywhere.
+      </p>
+
+      <div class="gate-actions">
+
+        <button
+          id="createRoomBtn"
+          class="gate-primary"
+          type="button"
+        >
+          Create a room
+        </button>
+
+        <button
+          id="joinPromptBtn"
+          class="gate-secondary"
+          type="button"
+        >
+          Join with code
+        </button>
+
+      </div>
+
+      <div class="gate-note">
+        Two people · One movie · Together
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================================================
+       JOIN SHEET
+       ========================================================= -->
+
+  <section
+    id="joinSheet"
+    class="join-sheet hidden"
+    aria-hidden="true"
+  >
+
+    <div
+      id="joinBackdrop"
+      class="join-backdrop"
+    ></div>
+
+    <div class="join-card">
+
+      <button
+        id="closeJoinBtn"
+        class="join-close"
+        type="button"
+        aria-label="Close"
+      >
+        ×
+      </button>
+
+      <div class="join-eyebrow">
+        MOVIEDATE
+      </div>
+
+      <h2>
+        Join a room
+      </h2>
+
+      <p>
+        Enter the room code from your partner.
+      </p>
+
+      <input
+        id="roomCodeInput"
+        class="room-code-input"
+        type="text"
+        maxlength="12"
+        placeholder="ROOM CODE"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+      >
+
+      <button
+        id="joinRoomBtn"
+        class="gate-primary join-button"
+        type="button"
+      >
+        Join room
+      </button>
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================================================
+       MAIN APP
+       ========================================================= -->
+
+  <main
+    id="app"
+    class="app hidden"
+  >
+
+    <!-- =======================================================
+         TOP BAR
+         ======================================================= -->
+
+    <header class="topbar">
+
+      <div class="brand">
+        Movie<span>Date</span>
+      </div>
+
+      <div class="room-info">
+
+        <span class="room-label">
+          ROOM
+        </span>
+
+        <strong id="roomCode">
+          ------
+        </strong>
+
+      </div>
+
+      <div class="top-actions">
+
+        <button
+          id="shareRoomBtn"
+          class="top-button"
+          type="button"
+        >
+          <span class="button-icon">↗</span>
+          <span>Share</span>
+        </button>
+
+        <button
+          id="exitBtn"
+          class="top-button exit-button"
+          type="button"
+        >
+          Exit
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- =======================================================
+         WATCH AREA
+         ======================================================= -->
+
+    <section class="watch-layout">
+
+
+      <!-- =====================================================
+           MOVIE
+           ===================================================== -->
+
+      <section class="movie-section">
+
+        <div
+          id="movieTap"
+          class="movie-container"
+        >
+
+          <video
+            id="movie"
+            class="movie"
+            playsinline
+            preload="metadata"
+          ></video>
+
+
+          <!-- Empty movie state -->
+
+          <div
+            id="emptyState"
+            class="movie-empty"
+          >
+
+            <div class="movie-empty-inner">
+
+              <div class="movie-icon">
+                ▶
+              </div>
+
+              <div class="empty-title">
+                Choose a movie
+              </div>
+
+              <div class="empty-text">
+                Pick a movie from your device
+              </div>
+
+              <button
+                id="chooseMovieBtn"
+                class="choose-movie-button"
+                type="button"
+              >
+                Choose movie
+              </button>
+
+              <input
+                id="movieFile"
+                type="file"
+                accept="video/mp4,video/webm,.mp4,.webm"
+                hidden
+              >
+
+            </div>
+
+          </div>
+
+
+          <!-- Movie loading -->
+
+          <div
+            id="movieLoading"
+            class="movie-loading hidden"
+          >
+            <div class="loading-spinner"></div>
+            <span>Connecting movie…</span>
+          </div>
+
+
+          <!-- Movie title -->
+
+          <div
+            id="movieTitle"
+            class="movie-title-overlay hidden"
+          >
+            <span id="movieTitleText">
+              Movie
+            </span>
+          </div>
+
+
+          <!-- Center play button -->
+
+          <button
+            id="centerPlayBtn"
+            class="center-play hidden"
+            type="button"
+            aria-label="Play movie"
+          >
+            ▶
+          </button>
+
+
+          <!-- Movie controls -->
+
+          <div
+            id="movieControls"
+            class="movie-controls"
+          >
+
+            <button
+              id="playBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Play or pause"
+            >
+              ▶
+            </button>
+
+            <input
+              id="seekBar"
+              class="seek-bar"
+              type="range"
+              min="0"
+              max="100"
+              value="0"
+              step="0.1"
+              aria-label="Movie progress"
+            >
+
+            <span
+              id="movieTime"
+              class="movie-time"
+            >
+              00:00
+            </span>
+
+            <button
+              id="muteBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Mute"
+            >
+              🔊
+            </button>
+
+            <button
+              id="fullscreenBtn"
+              class="movie-control-button"
+              type="button"
+              aria-label="Fullscreen"
+            >
+              ⛶
+            </button>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           RIGHT SIDE
+           ===================================================== -->
+
+      <aside class="people">
+
+
+        <!-- Partner / camera row -->
+
+        <div class="people-header">
+
+          <span>
+            TOGETHER
+          </span>
+
+          <div
+            id="connectionStatus"
+            class="connection-status"
+          >
+            <i></i>
+            Connecting
+          </div>
+
+        </div>
+
+
+        <div class="video-row">
+
+
+          <!-- You -->
+
+          <div class="person-card">
+
+            <div class="camera-box">
+
+              <video
+                id="localVideo"
+                autoplay
+                muted
+                playsinline
+              ></video>
+
+              <div
+                id="localPlaceholder"
+                class="camera-placeholder"
+              >
+                <span>YOU</span>
+              </div>
+
+              <div class="person-overlay">
+
+                <span class="person-name">
+                  You
+                </span>
+
+                <span
+                  id="localMicState"
+                  class="mic-state"
+                >
+                  🎙
+                </span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <!-- Partner -->
+
+          <div class="person-card">
+
+            <div class="camera-box">
+
+              <video
+                id="remoteVideo"
+                autoplay
+                playsinline
+              ></video>
+
+              <div
+                id="remotePlaceholder"
+                class="camera-placeholder partner-placeholder"
+              >
+                <span>PARTNER</span>
+              </div>
+
+              <div class="person-overlay">
+
+                <span class="person-name">
+                  Partner
+                </span>
+
+                <span
+                  id="remoteMicState"
+                  class="mic-state"
+                >
+                  🎙
+                </span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- Chat -->
+
+        <div class="chat-panel">
+
+          <div class="chat-header">
+            <span>CHAT</span>
+            <span class="chat-dot"></span>
+          </div>
+
+          <div
+            id="messages"
+            class="messages"
+          ></div>
+
+          <form
+            id="chatForm"
+            class="chat-form"
+          >
+
+            <input
+              id="chatInput"
+              type="text"
+              maxlength="500"
+              placeholder="Say something…"
+              autocomplete="off"
+            >
+
+            <button
+              id="sendChat"
+              type="submit"
+              aria-label="Send message"
+            >
+              ↑
+            </button>
+
+          </form>
+
+        </div>
+
+      </aside>
+
+    </section>
+
+
+    <!-- =======================================================
+         BOTTOM CONTROLS
+         ======================================================= -->
+
+    <footer class="bottom-controls">
+
+      <div class="bottom-left">
+
+        <button
+          id="micBtn"
+          class="round-control"
+          type="button"
+          aria-label="Microphone"
+        >
+          🎙
+        </button>
+
+        <button
+          id="cameraBtn"
+          class="round-control"
+          type="button"
+          aria-label="Camera"
+        >
+          📷
+        </button>
+
+        <button
+          id="shareBtn"
+          class="round-control"
+          type="button"
+          aria-label="Share screen"
+        >
+          ▣
+        </button>
+
+      </div>
+
+
+      <div class="reactions">
+
+        <button
+          class="reaction-btn"
+          data-emoji="❤️"
+          type="button"
+          aria-label="Love"
+        >
+          ❤️
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="🥰"
+          type="button"
+          aria-label="Adore"
+        >
+          🥰
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="😘"
+          type="button"
+          aria-label="Kiss"
+        >
+          😘
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="😂"
+          type="button"
+          aria-label="Funny"
+        >
+          😂
+        </button>
+
+        <button
+          class="reaction-btn"
+          data-emoji="🔥"
+          type="button"
+          aria-label="Hot"
+        >
+          🔥
+        </button>
+
+      </div>
+
+      <div class="bottom-right">
+
+        <span
+          id="bottomRoomStatus"
+          class="bottom-room-status"
+        >
+          Waiting for partner
+        </span>
+
+      </div>
+
+    </footer>
+
+
+    <!-- =======================================================
+         REACTION LAYER
+         ======================================================= -->
+
+    <div
+      id="reactionLayer"
+      class="reaction-layer"
+    ></div>
+
+  </main>
+
+
+  <!-- =========================================================
+       TOAST
+       ========================================================= -->
+
+  <div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite"
+  ></div>
+
+
+  <!-- Socket.IO -->
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+  <!-- App -->
+
+  <script src="./app.js"></script>
+
+</body>
+</html>
