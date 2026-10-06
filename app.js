@@ -6,11 +6,7 @@ let roomId = (params.get("room") || "").toUpperCase();
 let isHost = false;
 let hasJoinedRoom = false;
 let localStream = null;
-let cameraStartPromise = null;
 let cameraPeer = null;
-let cameraRecoveryTimer = null;
-let cameraRestartAttempts = 0;
-let cameraRestarting = false;
 let moviePeer = null;
 let partnerSocketId = null;
 let movieCaptureStream = null;
@@ -40,8 +36,9 @@ if (movieFile) {
 
 // Persistent host-only movie changer in the top bar.
 function ensureChangeMovieButton() {
-  const actions = document.querySelector(".top-actions");
-  if (!actions || $("changeMovieTopBtn")) return;
+  const header = document.querySelector(".topbar");
+  const roomInfo = document.querySelector(".room-info");
+  if (!header || !roomInfo || $("changeMovieTopBtn")) return;
 
   const button = document.createElement("button");
   button.id = "changeMovieTopBtn";
@@ -49,7 +46,6 @@ function ensureChangeMovieButton() {
   button.className = "top-button change-movie-button";
   button.textContent = "Change movie";
   button.title = "Choose a different movie";
-  button.setAttribute("aria-label", "Change movie");
   button.style.display = "none";
   button.addEventListener("click", () => {
     if (!isHost) {
@@ -59,14 +55,7 @@ function ensureChangeMovieButton() {
     movieFile?.click();
   });
 
-  // Keep it aligned with Share and Exit, rather than floating between the
-  // room code and action group. Insert it immediately before Share.
-  const shareButton = $("shareRoomBtn");
-  if (shareButton && shareButton.parentElement === actions) {
-    actions.insertBefore(button, shareButton);
-  } else {
-    actions.prepend(button);
-  }
+  roomInfo.insertAdjacentElement("afterend", button);
 }
 
 function updateChangeMovieButton() {
@@ -112,81 +101,8 @@ function setConnectionUI(text, online = false) {
 }
 
 function setPartnerStatus(text) {
-  const normalized = String(text || "").toLowerCase();
-  const live = (normalized.includes("live") || normalized.includes("connected")) &&
-    !normalized.includes("disconnected") && !normalized.includes("reconnect") &&
-    !normalized.includes("failed") && !normalized.includes("waiting");
-  setConnectionUI(text, live);
-
-  let bottom = "Waiting for partner";
-  if (normalized.includes("reconnect")) bottom = "Reconnecting camera…";
-  else if (normalized.includes("failed") || normalized.includes("unstable") || normalized.includes("interrupted")) bottom = "Camera connection interrupted";
-  else if (normalized.includes("connecting")) bottom = "Connecting camera…";
-  else if (live) bottom = "Partner connected";
-  setText("bottomRoomStatus", bottom);
-}
-
-function clearCameraRecoveryTimer() {
-  if (cameraRecoveryTimer) clearTimeout(cameraRecoveryTimer);
-  cameraRecoveryTimer = null;
-}
-
-// The host coordinates ICE restarts so both peers don't create offers at once.
-// This can recover temporary network changes without changing the backend or
-// adding a TURN service. It cannot overcome networks that require TURN relay.
-function scheduleCameraRecovery(delay = 1800) {
-  if (!hasJoinedRoom || cameraRecoveryTimer) return;
-  setPartnerStatus("○ reconnecting camera…");
-  cameraRecoveryTimer = setTimeout(async () => {
-    cameraRecoveryTimer = null;
-    if (!cameraPeer || cameraPeer.connectionState === "connected") return;
-
-    if (isHost) {
-      await restartCameraIce();
-    } else {
-      socket.emit("webrtc", { channel: "camera", type: "restart-request" });
-      // Ask the host again if the connection is still down after the restart.
-      cameraRecoveryTimer = setTimeout(() => {
-        cameraRecoveryTimer = null;
-        if (cameraPeer && cameraPeer.connectionState !== "connected") scheduleCameraRecovery(0);
-      }, 6000);
-    }
-  }, delay);
-}
-
-async function restartCameraIce(force = false) {
-  if (!isHost || !cameraPeer || cameraRestarting || !hasJoinedRoom) return;
-  if (!force && cameraPeer.connectionState === "connected") return;
-  if (cameraRestartAttempts >= 3) {
-    setPartnerStatus("○ connection unstable");
-    return;
-  }
-  if (cameraPeer.signalingState !== "stable") {
-    scheduleCameraRecovery(1200);
-    return;
-  }
-
-  const peer = cameraPeer;
-  cameraRestarting = true;
-  cameraRestartAttempts += 1;
-  setPartnerStatus(`○ reconnecting camera (${cameraRestartAttempts}/3)…`);
-
-  try {
-    const offer = await peer.createOffer({ iceRestart: true });
-    if (peer !== cameraPeer) return;
-    await peer.setLocalDescription(offer);
-    socket.emit("webrtc", { channel: "camera", type: "offer", sdp: peer.localDescription });
-  } catch (error) {
-    console.warn("CAMERA ICE RESTART ERROR:", error);
-  } finally {
-    cameraRestarting = false;
-  }
-
-  if (cameraRecoveryTimer) clearTimeout(cameraRecoveryTimer);
-  cameraRecoveryTimer = setTimeout(() => {
-    cameraRecoveryTimer = null;
-    if (cameraPeer && cameraPeer.connectionState !== "connected") scheduleCameraRecovery(0);
-  }, 6000);
+  setConnectionUI(text, text.includes("live") || text.includes("connected"));
+  setText("bottomRoomStatus", text.includes("live") || text.includes("connected") ? "Partner connected" : "Waiting for partner");
 }
 
 function addMessage(text, me = false) {
@@ -202,16 +118,35 @@ function addMessage(text, me = false) {
 function showReaction(emoji) {
   const layer = $("reactionLayer") || document.body;
   const el = document.createElement("div");
-  // Match the stylesheet class and start reactions at the visual centre.
-  el.className = "floating-reaction";
+  el.className = "float-reaction";
   el.textContent = emoji;
-  el.setAttribute("aria-hidden", "true");
-  el.style.left = "50%";
-  el.style.top = "50%";
-  el.style.setProperty("--drift", `${Math.round((Math.random() - 0.5) * 90)}px`);
+  el.style.left = `${25 + Math.random() * 55}vw`;
+  el.style.top = `${55 + Math.random() * 20}vh`;
   layer.appendChild(el);
-  setTimeout(() => el.remove(), 1850);
+  setTimeout(() => el.remove(), 1600);
 }
+
+// Forward emoji-panel taps and recognized hand gestures to the room.
+window.addEventListener("moviedate:gesture-reaction", event => {
+  const detail = event.detail || {};
+  const allowed = new Set([
+    "hearts",
+    "balloons",
+    "emoji",
+    "rain",
+    "confetti",
+    "fireworks",
+    "lasers"
+  ]);
+
+  if (!detail.emoji || !allowed.has(detail.effect)) return;
+
+  showReaction(detail.emoji);
+  socket.emit("reaction", {
+    emoji: detail.emoji,
+    effect: detail.effect
+  });
+});
 
 function openApp() {
   show("roomGate", false);
@@ -238,64 +173,43 @@ function closeJoinSheet() {
 
 async function startCamera() {
   if (localStream) return localStream;
-  // Prevent the room-join path and an incoming WebRTC offer from requesting
-  // camera/microphone simultaneously. Both callers await the same stream.
-  if (cameraStartPromise) return cameraStartPromise;
   if (!navigator.mediaDevices?.getUserMedia) {
     toast("Camera is not supported in this browser");
     return null;
   }
 
-  cameraStartPromise = (async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: true
-      });
-      localStream = stream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: true
+    });
 
-      if (localVideo) {
-        localVideo.srcObject = localStream;
-        localVideo.muted = true;
-        localVideo.playsInline = true;
-        localVideo.autoplay = true;
-        localVideo.play().catch(() => {});
-      }
-
-      if ($("localPlaceholder")) $("localPlaceholder").style.display = "none";
-      setText("localMicState", "🎙");
-
-      // If a peer already exists, attach the newly available tracks and make
-      // sure the corresponding media directions permit sending as well as
-      // receiving. The offer handler below normally waits for this stream first.
-      if (cameraPeer) {
-        for (const track of localStream.getTracks()) {
-          const sender = cameraPeer.getSenders().find(s => s.track?.kind === track.kind);
-          if (sender) {
-            if (sender.track !== track) await sender.replaceTrack(track);
-          } else {
-            cameraPeer.addTrack(track, localStream);
-          }
-        }
-        for (const transceiver of cameraPeer.getTransceivers()) {
-          if (transceiver.sender.track && transceiver.direction === "recvonly") {
-            transceiver.direction = "sendrecv";
-          }
-        }
-      }
-
-      return localStream;
-    } catch (error) {
-      console.error("CAMERA ERROR:", error);
-      toast("Camera/mic permission not granted");
-      setText("localMicState", "○");
-      return null;
-    } finally {
-      cameraStartPromise = null;
+    if (localVideo) {
+      localVideo.srcObject = localStream;
+      localVideo.muted = true;
+      localVideo.playsInline = true;
+      localVideo.autoplay = true;
+      localVideo.play().catch(() => {});
     }
-  })();
 
-  return cameraStartPromise;
+    if ($("localPlaceholder")) $("localPlaceholder").style.display = "none";
+    setText("localMicState", "🎙");
+
+    if (cameraPeer) {
+      for (const track of localStream.getTracks()) {
+        if (!cameraPeer.getSenders().some(s => s.track === track)) {
+          cameraPeer.addTrack(track, localStream);
+        }
+      }
+    }
+
+    return localStream;
+  } catch (error) {
+    console.error("CAMERA ERROR:", error);
+    toast("Camera/mic permission not granted");
+    setText("localMicState", "○");
+    return null;
+  }
 }
 
 async function createRoom() {
@@ -377,21 +291,10 @@ function createCameraPeer(offerer = false) {
   cameraPeer.onconnectionstatechange = () => {
     const state = cameraPeer?.connectionState;
     console.log("CAMERA CONNECTION:", state);
-    if (state === "connected") {
-      clearCameraRecoveryTimer();
-      cameraRestartAttempts = 0;
-      cameraRestarting = false;
-      setPartnerStatus("● live");
-    } else if (state === "connecting" || state === "new") {
-      if (cameraRestartAttempts > 0) setPartnerStatus("○ reconnecting camera…");
-      else setPartnerStatus("○ connecting camera…");
-    } else if (state === "failed") {
-      setPartnerStatus("○ reconnecting camera…");
-      scheduleCameraRecovery(250);
-    } else if (state === "disconnected") {
-      setPartnerStatus("○ reconnecting camera…");
-      scheduleCameraRecovery(1800);
-    }
+    if (state === "connected") setPartnerStatus("● live");
+    else if (state === "connecting" || state === "new") setPartnerStatus("○ connecting");
+    else if (state === "failed") setPartnerStatus("○ connection failed");
+    else if (state === "disconnected") setPartnerStatus("○ disconnected");
   };
 
   if (offerer) {
@@ -492,17 +395,6 @@ async function startMovieStream() {
 
 async function handleCameraSignal(msg) {
   if (!msg) return;
-
-  if (msg.type === "restart-request") {
-    if (isHost) await restartCameraIce(true);
-    return;
-  }
-
-  // The receiver can get the host's offer immediately after joining. Ensure
-  // local camera/mic tracks are ready BEFORE creating the answer peer; otherwise
-  // the answer may advertise recvonly media and the host will never get the
-  // receiver's camera/audio.
-  if (!localStream) await startCamera();
   const pc = cameraPeer || createCameraPeer(false);
 
   if (msg.type === "offer") {
@@ -559,7 +451,7 @@ socket.on("room-joined", data => {
   isHost = !!data?.isHost;
   setText("roomCode", data?.roomId || roomId);
   updateChangeMovieButton();
-  setPartnerStatus(data?.participants > 1 ? "○ connecting camera…" : "○ waiting");
+  setPartnerStatus(data?.participants > 1 ? "● connected" : "○ waiting");
 });
 
 socket.on("room-state", data => {
@@ -567,7 +459,7 @@ socket.on("room-state", data => {
   if (data.hostSocketId === socket.id) isHost = true;
   updateChangeMovieButton();
   setText("roomCode", data.roomId || roomId);
-  setPartnerStatus(data.participants > 1 ? "○ connecting camera…" : "○ waiting");
+  setPartnerStatus(data.participants > 1 ? "● connected" : "○ waiting");
 
   if (data.movie?.name) {
     setText("movieTitleText", data.movie.name);
@@ -581,7 +473,7 @@ socket.on("room-state", data => {
 
 socket.on("peer-joined", async ({ socketId, hostSocketId }) => {
   partnerSocketId = socketId;
-  setPartnerStatus("○ connecting camera…");
+  setPartnerStatus("● connected");
   if (socket.id === hostSocketId) {
     isHost = true;
     updateChangeMovieButton();
@@ -599,9 +491,6 @@ socket.on("peer-ready", async () => {
 
 socket.on("peer-left", () => {
   partnerSocketId = null;
-  clearCameraRecoveryTimer();
-  cameraRestartAttempts = 0;
-  cameraRestarting = false;
   setPartnerStatus("○ waiting");
   cameraIceQueue = [];
   movieIceQueue = [];
@@ -1047,7 +936,20 @@ for (const button of document.querySelectorAll(".reaction-btn")) {
 }
 
 socket.on("reaction", data => {
-  if (data?.emoji) showReaction(data.emoji);
+  if (!data?.emoji) return;
+
+  showReaction(data.emoji);
+
+  if (data.effect) {
+    window.dispatchEvent(
+      new CustomEvent("moviedate:remote-gesture-effect", {
+        detail: {
+          emoji: data.emoji,
+          effect: data.effect
+        }
+      })
+    );
+  }
 });
 
 // Mobile browsers may block autoplay with audio. Once the user interacts
