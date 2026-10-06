@@ -789,7 +789,7 @@ input:focus-visible {
   box-shadow: 0 0 8px rgba(224,168,60,0.7);
 }
 
-.connection-status.on i {
+.connection-status.connected i {
   background: #52d88a;
   box-shadow: 0 0 8px rgba(82,216,138,0.7);
 }
@@ -1152,28 +1152,33 @@ input:focus-visible {
 
 .floating-reaction {
   position: absolute;
-  z-index: 101;
-  display: block;
-  bottom: auto;
-  font-size: clamp(30px, 4.5vw, 54px);
-  line-height: 1;
-  will-change: transform, opacity;
-  animation: floatReaction 1800ms cubic-bezier(.18,.68,.25,1) forwards;
-  filter: drop-shadow(0 5px 18px rgba(0,0,0,0.42));
+
+  bottom: 80px;
+
+  font-size: 28px;
+
+  animation: floatReaction 1800ms ease-out forwards;
+
+  filter: drop-shadow(0 5px 14px rgba(0,0,0,0.35));
 }
 
 @keyframes floatReaction {
   0% {
     opacity: 0;
-    transform: translate(-50%, -35%) scale(0.55) rotate(-8deg);
+    transform:
+      translate3d(0, 20px, 0)
+      scale(0.7);
   }
+
   12% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.18) rotate(3deg);
   }
+
   100% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--drift, 0px)), calc(-50% - 170px)) scale(1.28) rotate(8deg);
+    transform:
+      translate3d(var(--drift), -260px, 0)
+      scale(1.15);
   }
 }
 
@@ -1491,30 +1496,3 @@ input:focus-visible {
   }
 
 }
-
-/* Top-bar movie switcher: aligned with Share / Exit at every viewport. */
-.top-actions .change-movie-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  border-color: rgba(255,82,120,0.28);
-  background: rgba(255,82,120,0.10);
-  color: #ffdce5;
-}
-.top-actions .change-movie-button:hover {
-  background: rgba(255,82,120,0.18);
-}
-@media (max-width: 900px) and (orientation: landscape) {
-  .top-actions { gap: 5px; }
-  .top-actions .change-movie-button { padding-inline: 7px; font-size: 9px; }
-}
-/* Append to the END of style.css; do not replace existing styles. */
-.gesture-reaction-control{display:flex;align-items:center;gap:6px;margin-left:auto;letter-spacing:0;text-transform:none;flex-shrink:0}
-.gesture-reaction-status{max-width:112px;overflow:hidden;color:var(--muted);font-size:9px;font-weight:500;white-space:nowrap;text-overflow:ellipsis}
-.gesture-reaction-toggle{min-height:27px;padding:0 9px;border:1px solid rgba(255,82,120,.25);border-radius:8px;background:rgba(255,82,120,.09);color:#ffdce5;font-size:9px;font-weight:650;white-space:nowrap}
-.gesture-reaction-toggle.is-enabled{border-color:rgba(82,216,138,.3);background:rgba(82,216,138,.10);color:#b9f5d0}
-@media(max-width:900px) and (orientation:landscape){.gesture-reaction-control{gap:4px}.gesture-reaction-status{max-width:76px;font-size:7px}.gesture-reaction-toggle{min-height:24px;padding:0 6px;font-size:7px}}
-@media(max-width:480px) and (orientation:portrait){.gesture-reaction-status{display:none}.gesture-reaction-control{gap:0}}
-
