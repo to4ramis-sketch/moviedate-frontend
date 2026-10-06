@@ -1,0 +1,16 @@
+/* Append to the END of style.css. Horizontal emoji picker only; no gesture directory. */
+.md-emoji-panel{margin:7px 0 10px;padding:7px 9px 8px;border:1px solid rgba(255,130,170,.14);border-radius:13px;background:rgba(24,20,29,.9);color:#fff;max-width:100%;overflow:hidden}
+.md-emoji-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;padding:0 2px}
+.md-emoji-panel-head>span{font-size:11px;font-weight:600;letter-spacing:.02em;color:rgba(255,255,255,.72)}
+.md-gesture-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:26px;border:1px solid rgba(255,150,190,.2);border-radius:999px;background:rgba(255,105,155,.08);color:#ffdce9;font-size:14px;flex-shrink:0;cursor:pointer}
+.md-gesture-toggle.is-gesture-active{background:rgba(255,105,155,.24);border-color:rgba(255,105,155,.7)}
+.md-gesture-toggle.is-gesture-unavailable{opacity:.55}
+.md-emoji-strip{display:flex;align-items:center;gap:5px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 1px 4px;-webkit-overflow-scrolling:touch;touch-action:pan-x}
+.md-emoji-strip::-webkit-scrollbar{display:none}
+.md-emoji-button{display:flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;padding:0;border:1px solid rgba(255,255,255,.055);border-radius:10px;background:rgba(255,255,255,.045);font-size:22px;line-height:1;cursor:pointer;transition:transform .16s,background .16s,border-color .16s}
+.md-emoji-button:active,.md-emoji-button.is-tapped{transform:scale(.88);background:rgba(255,105,155,.2);border-color:rgba(255,105,155,.45)}
+.md-emoji-button:focus-visible,.md-gesture-toggle:focus-visible{outline:2px solid #ff9fc4;outline-offset:2px}
+.md-gesture-burst{position:absolute;z-index:40;pointer-events:none;font-size:clamp(22px,4vw,42px);animation:md-gesture-float 1.6s ease-out forwards;will-change:transform,opacity}
+@keyframes md-gesture-float{0%{opacity:0;transform:translate3d(0,18px,0) scale(.7) rotate(-8deg)}12%{opacity:1}100%{opacity:0;transform:translate3d(var(--md-drift,18px),-170px,0) scale(1.18) rotate(10deg)}}
+@media(max-width:600px){.md-emoji-panel{margin:5px 0 7px;padding:6px 7px 7px;border-radius:11px}.md-emoji-panel-head>span{font-size:10px}.md-emoji-button{flex-basis:35px;width:35px;height:35px;font-size:21px}.md-emoji-strip{gap:4px}}
+@media(prefers-reduced-motion:reduce){.md-emoji-button,.md-gesture-burst{transition:none;animation-duration:.01ms!important;animation-iteration-count:1!important}}
