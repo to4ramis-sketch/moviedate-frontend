@@ -323,8 +323,13 @@ async function joinRoom(id, host = false) {
 }
 
 async function joinExistingRoom() {
-  if (!roomId || hasJoinedRoom) return;
-  await joinRoom(roomId, false);
+  if (!roomId || !socket.connected) return;
+
+  // A fresh Socket.IO connection has a new socket ID and the backend has
+  // removed the previous connection from the room. Rejoin even though the
+  // user already joined earlier in this page session.
+  if (hasJoinedRoom) return;
+  await joinRoom(roomId, isHost);
 }
 
 function createCameraPeer(offerer = false) {
@@ -542,15 +547,64 @@ async function handleMovieSignal(msg) {
 }
 
 socket.on("connect", () => {
-  console.log("SOCKET CONNECTED:", socket.id);
+  console.log("SOCKET CONNECTED:", socket.id, "recovered:", !!socket.recovered);
   setConnectionUI("Connected", false);
-  if (roomId) joinExistingRoom();
+
+  // On a normal reconnect, Socket.IO gives us a new socket ID. Rebuild the
+  // room membership and WebRTC peers instead of relying on the stale
+  // hasJoinedRoom flag. A recovered connection keeps its room membership.
+  if (roomId && !socket.recovered) {
+    if (hasJoinedRoom) {
+      resetPeersForReconnect();
+      hasJoinedRoom = false;
+    }
+    joinExistingRoom();
+  }
 });
 
-socket.on("disconnect", () => {
-  console.log("SOCKET DISCONNECTED");
-  setConnectionUI("Disconnected", false);
+socket.on("connect_error", error => {
+  console.warn("SOCKET CONNECT ERROR:", error?.message || error);
+  setConnectionUI("Reconnecting…", false);
 });
+
+socket.on("reconnect_attempt", attempt => {
+  console.log("SOCKET RECONNECT ATTEMPT:", attempt);
+  setConnectionUI("Reconnecting…", false);
+});
+
+socket.on("disconnect", reason => {
+  console.warn("SOCKET DISCONNECTED:", reason);
+  setConnectionUI("Disconnected — reconnecting…", false);
+
+  // The server removes disconnected sockets from their room. Clear the old
+  // WebRTC peer state so the next room join can negotiate fresh connections.
+  resetPeersForReconnect();
+  hasJoinedRoom = false;
+  updateChangeMovieButton();
+});
+
+function resetPeersForReconnect() {
+  clearCameraRecoveryTimer();
+  cameraRestartAttempts = 0;
+  cameraRestarting = false;
+  partnerSocketId = null;
+  cameraIceQueue = [];
+  movieIceQueue = [];
+
+  if (cameraPeer) { cameraPeer.close(); cameraPeer = null; }
+  if (moviePeer) { moviePeer.close(); moviePeer = null; }
+
+  if (movieCaptureStream) {
+    movieCaptureStream.getTracks().forEach(track => track.stop());
+    movieCaptureStream = null;
+  }
+  remoteMovieStream = null;
+  movieStreamStarted = false;
+
+  if (remoteVideo) remoteVideo.srcObject = null;
+  if ($("remotePlaceholder")) $("remotePlaceholder").style.display = "grid";
+  setPartnerStatus("○ reconnecting…");
+}
 
 socket.on("room-error", data => toast(data?.message || "Room error"));
 socket.on("room-full", () => toast("This room already has two people"));
